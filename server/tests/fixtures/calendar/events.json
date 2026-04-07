@@ -1,0 +1,36 @@
+[
+  {
+    "id": "event-001",
+    "summary": "Team standup",
+    "start": {"dateTime": "2026-04-07T09:00:00Z"},
+    "end":   {"dateTime": "2026-04-07T09:30:00Z"},
+    "attendees": [
+      {"email": "alice@example.com"},
+      {"email": "bob@example.com"}
+    ],
+    "description": "Daily standup"
+  },
+  {
+    "id": "event-002",
+    "summary": "1:1 with manager",
+    "start": {"dateTime": "2026-04-07T10:00:00Z"},
+    "end":   {"dateTime": "2026-04-07T11:00:00Z"},
+    "attendees": [
+      {"email": "manager@example.com"}
+    ],
+    "description": ""
+  },
+  {
+    "id": "event-003",
+    "summary": "All-hands meeting",
+    "start": {"dateTime": "2026-04-08T14:00:00Z"},
+    "end":   {"dateTime": "2026-04-08T15:30:00Z"},
+    "attendees": [
+      {"email": "alice@example.com"},
+      {"email": "bob@example.com"},
+      {"email": "carol@example.com"},
+      {"email": "dave@example.com"}
+    ],
+    "description": "Monthly all-hands"
+  }
+]
