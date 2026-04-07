@@ -99,7 +99,8 @@ The full granular step list is in `docs/PLANNING.md`. Current status:
 - ✅ Step 4a: Google OAuth routes + session middleware
 - ✅ Step 4b: LoginPage component + useAuth hook
 - ✅ Step 4c: Auth integration test
-- ⬜ Step 5a–5g: Calendar
+- ✅ Step 5a: Google Calendar service + unit tests
+- ⬜ Step 5b–5h: Calendar routes + components
 - ⬜ Step 6a–6i: Chat + Agent
 - ⬜ Step 7a–7c: Pending events
 - ⬜ Step 8a–8i: Insights
