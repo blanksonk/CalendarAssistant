@@ -15,7 +15,8 @@ _TEST_ENV = {
     "VOYAGE_API_KEY": "test-voyage-key",
     "DATABASE_URL": "postgresql+asyncpg://test:test@localhost/test",
     "SESSION_SECRET": "test-session-secret-32-chars-long!!",
-    "ENCRYPTION_KEY": "dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1jaGFycw==",
+    # Valid 32-byte Fernet key (URL-safe base64, 44 chars required)
+    "ENCRYPTION_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 }
 for _k, _v in _TEST_ENV.items():
     os.environ.setdefault(_k, _v)

@@ -96,7 +96,8 @@ The full granular step list is in `docs/PLANNING.md`. Current status:
 - ✅ Step 2: Project scaffold
 - ✅ Step 3a: SQLAlchemy models + unit tests
 - ✅ Step 3b: Alembic migrations
-- ⬜ Step 4a–4c: Auth
+- ✅ Step 4a: Google OAuth routes + session middleware
+- ⬜ Step 4b–4c: Auth (LoginPage, integration test)
 - ⬜ Step 5a–5g: Calendar
 - ⬜ Step 6a–6i: Chat + Agent
 - ⬜ Step 7a–7c: Pending events
