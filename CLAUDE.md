@@ -102,9 +102,27 @@ The full granular step list is in `docs/PLANNING.md`. Current status:
 - ✅ Step 5a: Google Calendar service + unit tests
 - ✅ Step 5b: Calendar route + unit tests
 - ✅ Step 5c–5h: Calendar components (StatsBar, EventBlock, WeekGrid, MonthGrid, RadialView, CalendarView)
-- ⬜ Step 6a–6i: Chat + Agent
-- ⬜ Step 7a–7c: Pending events
-- ⬜ Step 8a–8i: Insights
+- ✅ Step 6a: Gmail service + unit tests
+- ✅ Step 6b: MCP calendar tools (list_events, get_free_slots, propose_event) + unit tests
+- ✅ Step 6c: MCP gmail + ui tools (create_gmail_draft, switch_tab) + unit tests
+- ✅ Step 6d: Claude streaming agent loop + unit tests
+- ✅ Step 6e: Chat SSE route + unit tests
+- ✅ Step 6f: ChatInput + CommandPalette components + unit tests
+- ✅ Step 6g: ChatMessage + ToolIndicator components + unit tests
+- ✅ Step 6h: EventProposalCard + DraftCard components + unit tests
+- ✅ Step 6i: ChatPanel integration + proactive greeting + SSE event handling
+- ✅ Step 7a: GhostEventBlock component + usePendingEvents store unit tests
+- ✅ Step 7b: EventModal component + unit tests
+- ✅ Step 7c: Pending event flow integration test
+- ✅ Step 8a: Insights computation service + unit tests
+- ✅ Step 8b: Voyage AI embeddings service + RAG retrieval + unit tests
+- ✅ Step 8c: MCP insights tools + weekly focus cache + unit tests
+- ✅ Step 8d: Chat history compression job + unit tests
+- ✅ Step 8e: Insights route + unit tests
+- ✅ Step 8f: WeeklyFocus component + unit tests
+- ✅ Step 8g: StatGrid component + unit tests
+- ✅ Step 8h: TopPeople + TopSeries components + unit tests
+- ✅ Step 8i: InsightsPanel integration + beforeunload warning + AppShell wiring
 - ⬜ Step 9a–9b: AppShell + E2E
 
 Update the checkboxes above as steps are completed.
