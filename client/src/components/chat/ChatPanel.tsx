@@ -17,9 +17,13 @@ interface ExtendedMessage extends Message {
 
 interface ChatPanelProps {
   onTabSwitch?: (tab: 'calendar' | 'insights') => void
+  /** Pre-filled text injected from outside (e.g. InsightsPanel click) */
+  initialInput?: string
+  /** Called after initialInput has been consumed */
+  onInputConsumed?: () => void
 }
 
-export function ChatPanel({ onTabSwitch }: ChatPanelProps) {
+export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed }: ChatPanelProps) {
   const { user } = useAuth()
   const [messages, setMessages] = useState<ExtendedMessage[]>([])
   const [input, setInput] = useState('')
@@ -28,6 +32,14 @@ export function ChatPanel({ onTabSwitch }: ChatPanelProps) {
   const [chatSessionId, setChatSessionId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const addPendingEvent = usePendingEventsStore((s) => s.addEvent)
+
+  // Consume initialInput from parent (InsightsPanel → ChatPanel)
+  useEffect(() => {
+    if (initialInput) {
+      setInput(initialInput)
+      onInputConsumed?.()
+    }
+  }, [initialInput])
 
   // Proactive greeting on mount
   useEffect(() => {

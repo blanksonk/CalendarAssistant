@@ -49,13 +49,42 @@ export const handlers = [
     )
   ),
 
-  // Insights
+  // Insights — full structured response
   http.get('/api/insights', () =>
     HttpResponse.json({
+      week_start: '2026-04-06',
       total_meetings: 13,
-      focus_blocks: 2,
-      back_to_back: 1,
-      avg_duration_mins: 48,
+      at_a_glance: {
+        total_meetings: 13,
+        new_meetings: 5,
+        avg_duration_mins: 45,
+        longest_meeting_mins: 90,
+        busiest_day: 'Tuesday',
+      },
+      time_breakdown: {
+        total_meeting_mins: 585,
+        focus_block_count: 2,
+        back_to_back_count: 1,
+        morning_meetings: 8,
+        afternoon_meetings: 5,
+      },
+      meeting_quality: {
+        no_agenda_count: 3,
+        recurring_count: 7,
+        one_off_count: 6,
+        organized_count: 4,
+        invited_count: 9,
+        one_on_one_count: 5,
+        group_count: 8,
+      },
+      top_people: [
+        { email: 'alice@example.com', count: 5 },
+        { email: 'bob@example.com', count: 3 },
+      ],
+      top_series: [
+        { title: 'Weekly standup', count: 5, total_mins: 150 },
+        { title: '1:1 with manager', count: 2, total_mins: 120 },
+      ],
     })
   ),
 ]

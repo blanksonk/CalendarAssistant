@@ -1,13 +1,35 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { CalendarView } from '../calendar/CalendarView'
+import { InsightsPanel } from '../insights/InsightsPanel'
 import { ChatPanel } from '../chat/ChatPanel'
+import { usePendingEventsStore } from '../../store/pendingEventsStore'
 
 type MainTab = 'calendar' | 'insights'
 
 export function AppShell() {
   const { user, logout } = useAuth()
   const [activeTab, setActiveTab] = useState<MainTab>('calendar')
+  const [chatInput, setChatInput] = useState('')
+  const pendingEvents = usePendingEventsStore((s) => s.events)
+
+  // Warn before leaving with pending events
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (pendingEvents.length > 0) {
+        e.preventDefault()
+        e.returnValue = 'You have unconfirmed events — are you sure you want to leave?'
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [pendingEvents.length])
+
+  // Allow the InsightsPanel to pre-fill the chat input
+  const handlePromptAgent = (message: string) => {
+    setChatInput(message)
+    // No need to switch tabs — chat panel is always visible
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-gray-50">
@@ -20,6 +42,14 @@ export function AppShell() {
             </svg>
           </div>
           <span className="font-semibold text-gray-800 text-sm">CalendarAssistant</span>
+
+          {/* Pending events badge */}
+          {pendingEvents.length > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              {pendingEvents.length} pending
+            </span>
+          )}
 
           {/* Main tabs */}
           <div className="flex items-center gap-1 ml-4">
@@ -57,15 +87,17 @@ export function AppShell() {
         <div className="flex-1 overflow-hidden">
           {activeTab === 'calendar' && <CalendarView />}
           {activeTab === 'insights' && (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-gray-400 text-sm">Insights — coming in step 8</p>
-            </div>
+            <InsightsPanel onPromptAgent={handlePromptAgent} />
           )}
         </div>
 
         {/* Right panel — Chat (always visible) */}
         <div className="w-[380px] shrink-0 border-l border-gray-200 bg-white overflow-hidden">
-          <ChatPanel onTabSwitch={setActiveTab} />
+          <ChatPanel
+            onTabSwitch={setActiveTab}
+            initialInput={chatInput}
+            onInputConsumed={() => setChatInput('')}
+          />
         </div>
       </div>
     </div>
