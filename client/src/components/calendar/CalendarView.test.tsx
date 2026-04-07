@@ -1,14 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CalendarView } from './CalendarView'
 
-// Mock useCalendar to avoid real fetch calls
 vi.mock('../../hooks/useCalendar', () => ({
   useCalendar: vi.fn(),
 }))
 
-// Mock the pending events store
 vi.mock('../../store/pendingEventsStore', () => ({
   usePendingEventsStore: vi.fn(() => []),
 }))
@@ -45,29 +43,36 @@ describe('CalendarView', () => {
     vi.mocked(usePendingEventsStore).mockReturnValue([])
   })
 
-  it('renders three tab buttons', () => {
+  it('renders time range toggle (Week / Month)', () => {
     renderView()
-    expect(screen.getByTestId('tab-week')).toBeInTheDocument()
-    expect(screen.getByTestId('tab-month')).toBeInTheDocument()
-    expect(screen.getByTestId('tab-radial')).toBeInTheDocument()
+    expect(screen.getByTestId('time-toggle-week')).toBeInTheDocument()
+    expect(screen.getByTestId('time-toggle-month')).toBeInTheDocument()
   })
 
-  it('shows week grid by default', () => {
+  it('renders display mode toggle (Calendar / Radial)', () => {
     renderView()
-    expect(screen.getByTestId('week-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('display-toggle-calendar')).toBeInTheDocument()
+    expect(screen.getByTestId('display-toggle-radial')).toBeInTheDocument()
   })
 
-  it('switches to month view when month tab is clicked', () => {
+  it('shows radial view by default', () => {
     renderView()
-    fireEvent.click(screen.getByTestId('tab-month'))
-    expect(screen.getByTestId('month-grid')).toBeInTheDocument()
-    expect(screen.queryByTestId('week-grid')).not.toBeInTheDocument()
-  })
-
-  it('switches to radial view when radial tab is clicked', () => {
-    renderView()
-    fireEvent.click(screen.getByTestId('tab-radial'))
     expect(screen.getByTestId('radial-view')).toBeInTheDocument()
+  })
+
+  it('switches to calendar grid when Calendar toggle is clicked', () => {
+    renderView()
+    fireEvent.click(screen.getByTestId('display-toggle-calendar'))
+    // Week + Calendar = WeekGrid
+    expect(screen.getByTestId('week-grid')).toBeInTheDocument()
+    expect(screen.queryByTestId('radial-view')).not.toBeInTheDocument()
+  })
+
+  it('switches to month grid when Month + Calendar is selected', () => {
+    renderView()
+    fireEvent.click(screen.getByTestId('display-toggle-calendar'))
+    fireEvent.click(screen.getByTestId('time-toggle-month'))
+    expect(screen.getByTestId('month-grid')).toBeInTheDocument()
   })
 
   it('renders stats bar', () => {
@@ -75,16 +80,17 @@ describe('CalendarView', () => {
     expect(screen.getByTestId('stats-bar')).toBeInTheDocument()
   })
 
-  it('ghost event from pending store appears in week view', () => {
+  it('ghost event from pending store appears in calendar view', () => {
     const pending = {
       id: 'p1',
       title: 'Proposed meeting',
-      start: new Date(2026, 3, 6, 14, 0), // Monday
+      start: new Date(2026, 3, 6, 14, 0),
       end: new Date(2026, 3, 6, 15, 0),
     }
     vi.mocked(usePendingEventsStore).mockReturnValue([pending])
-
     renderView()
+    // Switch to calendar grid to see ghost block
+    fireEvent.click(screen.getByTestId('display-toggle-calendar'))
     expect(screen.getByTestId('ghost-block-p1')).toBeInTheDocument()
   })
 })

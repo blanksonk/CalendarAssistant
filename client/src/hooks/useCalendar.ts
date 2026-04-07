@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchEvents, type CalendarEvent } from '../api/calendar'
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from '../utils/dates'
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from '../utils/dates'
 
-export type CalendarView = 'week' | 'month' | 'radial'
+export type TimeRange = 'week' | 'month'
+export type DisplayMode = 'calendar' | 'radial'
 
-export function useCalendar(view: CalendarView, referenceDate: Date) {
-  const { start, end } = getDateRange(view, referenceDate)
+export function useCalendar(timeRange: TimeRange, referenceDate: Date) {
+  const { start, end } = getDateRange(timeRange, referenceDate)
 
   const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ['calendar', 'events', start.toISOString(), end.toISOString()],
@@ -16,8 +17,8 @@ export function useCalendar(view: CalendarView, referenceDate: Date) {
   return { events, isLoading, start, end }
 }
 
-function getDateRange(view: CalendarView, ref: Date): { start: Date; end: Date } {
-  if (view === 'week' || view === 'radial') {
+function getDateRange(range: TimeRange, ref: Date): { start: Date; end: Date } {
+  if (range === 'week') {
     return { start: startOfWeek(ref), end: endOfWeek(ref) }
   }
   return { start: startOfMonth(ref), end: endOfMonth(ref) }

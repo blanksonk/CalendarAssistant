@@ -2,34 +2,44 @@ import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { CalendarEvent } from '../../api/calendar'
 import type { PendingEvent } from '../../store/pendingEventsStore'
+import type { TimeRange } from '../../hooks/useCalendar'
 import { addDays, parseEventDate, startOfWeek } from '../../utils/dates'
 import { eventColorClass } from '../../utils/eventColors'
 
 interface RadialViewProps {
   referenceDate: Date
+  timeRange?: TimeRange
   events: CalendarEvent[]
   pendingEvents: PendingEvent[]
   onEventClick?: (event: CalendarEvent) => void
   onPendingClick?: (event: PendingEvent) => void
 }
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const TOTAL_HOURS = 24
 const INNER_R = 60 // center circle radius
 const OUTER_R = 230 // outer edge
 
 export function RadialView({
   referenceDate,
+  timeRange = 'week',
   events,
   pendingEvents,
   onEventClick,
   onPendingClick,
 }: RadialViewProps) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const [zoomedDay, setZoomedDay] = useState<number | null>(null)
+  const [zoomedSegment, setZoomedSegment] = useState<number | null>(null)
 
   const monday = startOfWeek(referenceDate)
-  const days = Array.from({ length: 5 }, (_, i) => addDays(monday, i))
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
+
+  // Month mode: build list of weeks in the month
+  const monthWeeks = buildMonthWeeks(referenceDate)
+
+  useEffect(() => {
+    setZoomedSegment(null)
+  }, [timeRange, referenceDate])
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -39,23 +49,119 @@ export function RadialView({
     const SIZE = 520
     const cx = SIZE / 2
     const cy = SIZE / 2
-
     svg.attr('viewBox', `0 0 ${SIZE} ${SIZE}`).attr('width', '100%').attr('height', '100%')
-
     const g = svg.append('g').attr('transform', `translate(${cx},${cy})`)
 
-    if (zoomedDay === null) {
-      renderFullWeek(g, days, events, pendingEvents, onEventClick, onPendingClick, setZoomedDay)
+    if (timeRange === 'week') {
+      if (zoomedSegment === null) {
+        renderFullWeek(g, weekDays, events, pendingEvents, onEventClick, onPendingClick, setZoomedSegment)
+      } else {
+        renderZoomedDay(g, weekDays[zoomedSegment], zoomedSegment, events, pendingEvents, onEventClick, onPendingClick, () => setZoomedSegment(null))
+      }
     } else {
-      renderZoomedDay(g, days[zoomedDay], zoomedDay, events, pendingEvents, onEventClick, onPendingClick, () => setZoomedDay(null))
+      if (zoomedSegment === null) {
+        renderMonthRadial(g, monthWeeks, referenceDate, events, pendingEvents, onEventClick, onPendingClick, setZoomedSegment)
+      } else {
+        // Zoomed into a week — show that week's days
+        const weekDaysZoomed = monthWeeks[zoomedSegment]
+        renderFullWeek(g, weekDaysZoomed, events, pendingEvents, onEventClick, onPendingClick, (idx) => {
+          if (idx === -1) setZoomedSegment(null)
+          // could zoom into day here in future
+        }, true)
+      }
     }
-  }, [referenceDate, events, pendingEvents, zoomedDay])
+  }, [referenceDate, timeRange, events, pendingEvents, zoomedSegment])
 
   return (
     <div data-testid="radial-view" className="flex items-center justify-center h-full w-full">
       <svg ref={svgRef} data-testid="radial-svg" />
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// Month radial: weeks as outer segments, click to zoom into a week
+// ---------------------------------------------------------------------------
+
+function renderMonthRadial(
+  g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  weeks: Date[][],
+  referenceDate: Date,
+  events: CalendarEvent[],
+  pendingEvents: PendingEvent[],
+  onEventClick?: (e: CalendarEvent) => void,
+  onPendingClick?: (e: PendingEvent) => void,
+  onWeekClick?: (weekIdx: number) => void,
+) {
+  const numWeeks = weeks.length
+
+  const weekArc = d3.arc<{ weekIdx: number }>()
+    .innerRadius(INNER_R)
+    .outerRadius(OUTER_R)
+    .startAngle((d) => (d.weekIdx / numWeeks) * 2 * Math.PI - Math.PI / 2)
+    .endAngle((d) => ((d.weekIdx + 1) / numWeeks) * 2 * Math.PI - Math.PI / 2)
+
+  weeks.forEach((week, weekIdx) => {
+    // Count events in this week
+    const weekEventCount = events.filter((e) =>
+      week.some((d) => d.toDateString() === parseEventDate(e.start).toDateString())
+    ).length
+
+    const intensity = Math.min(weekEventCount / 6, 1) // normalize 0–6 events
+    const fill = d3.interpolateBlues(0.1 + intensity * 0.5)
+
+    g.append('path')
+      .datum({ weekIdx })
+      .attr('d', weekArc)
+      .attr('fill', fill)
+      .attr('stroke', '#e2e8f0')
+      .attr('stroke-width', 1.5)
+      .attr('cursor', 'pointer')
+      .attr('data-testid', `week-segment-${weekIdx}`)
+      .on('click', () => onWeekClick?.(weekIdx))
+
+    // Week label
+    const midAngle = ((weekIdx + 0.5) / numWeeks) * 2 * Math.PI - Math.PI / 2
+    const labelR = OUTER_R + 20
+    const monday = week[0]
+    g.append('text')
+      .attr('x', labelR * Math.cos(midAngle))
+      .attr('y', labelR * Math.sin(midAngle))
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .attr('font-size', '10px')
+      .attr('fill', '#64748b')
+      .text(`Apr ${monday.getDate()}`)
+
+    // Event count badge inside segment
+    if (weekEventCount > 0) {
+      const badgeR = (INNER_R + OUTER_R) / 2
+      g.append('text')
+        .attr('x', badgeR * Math.cos(midAngle))
+        .attr('y', badgeR * Math.sin(midAngle))
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', '13px')
+        .attr('font-weight', '600')
+        .attr('fill', '#1e40af')
+        .text(weekEventCount)
+    }
+  })
+
+  // Center label
+  g.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'middle')
+    .attr('font-size', '11px')
+    .attr('fill', '#64748b')
+    .text(referenceDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }))
+
+  g.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('y', 16)
+    .attr('font-size', '9px')
+    .attr('fill', '#94a3b8')
+    .text('click week to zoom')
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +175,8 @@ function renderFullWeek(
   pendingEvents: PendingEvent[],
   onEventClick?: (e: CalendarEvent) => void,
   onPendingClick?: (e: PendingEvent) => void,
-  onDayClick?: (dayIdx: number) => void
+  onDayClick?: (dayIdx: number) => void,
+  isZoomedWeek = false,
 ) {
   const numDays = days.length
   const dayArc = d3.arc<{ dayIdx: number }>()
@@ -163,7 +270,18 @@ function renderFullWeek(
     .attr('dominant-baseline', 'middle')
     .attr('font-size', '10px')
     .attr('fill', '#94a3b8')
-    .text('This week')
+    .text(isZoomedWeek ? 'click day' : 'click day')
+
+  if (isZoomedWeek) {
+    g.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('y', 14)
+      .attr('font-size', '9px')
+      .attr('fill', '#94a3b8')
+      .attr('cursor', 'pointer')
+      .text('← back')
+      .on('click', () => onDayClick?.(-1)) // -1 = back signal
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -301,4 +419,30 @@ function tailwindColorToHex(cls: string, isBorder: boolean): string {
   if (cls.includes('orange')) return isBorder ? '#fb923c' : '#ffedd5'
   if (cls.includes('red')) return isBorder ? '#f87171' : '#fee2e2'
   return isBorder ? '#2dd4bf' : '#ccfbf1' // teal default
+}
+
+/** Build weeks (Mon–Sun arrays) covering the reference month */
+function buildMonthWeeks(date: Date): Date[][] {
+  const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1)
+  const lastOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+
+  // Find the Monday on or before the 1st
+  const startDay = new Date(firstOfMonth)
+  const dow = startDay.getDay()
+  const diff = dow === 0 ? -6 : 1 - dow
+  startDay.setDate(startDay.getDate() + diff)
+
+  const weeks: Date[][] = []
+  const cursor = new Date(startDay)
+
+  while (cursor <= lastOfMonth || weeks.length < 4) {
+    const week: Date[] = []
+    for (let i = 0; i < 7; i++) {
+      week.push(new Date(cursor))
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    weeks.push(week)
+    if (cursor > lastOfMonth && weeks.length >= 4) break
+  }
+  return weeks
 }

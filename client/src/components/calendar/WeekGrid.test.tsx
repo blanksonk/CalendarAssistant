@@ -31,7 +31,7 @@ function makePending(dayOffset: number = 0): PendingEvent {
 }
 
 describe('WeekGrid', () => {
-  it('renders 5 day headers (Mon–Fri)', () => {
+  it('renders 7 day headers (Mon–Sun)', () => {
     render(
       <WeekGrid
         referenceDate={MONDAY}
@@ -39,16 +39,16 @@ describe('WeekGrid', () => {
         pendingEvents={[]}
       />
     )
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 7; i++) {
       expect(screen.getByTestId(`day-header-${i}`)).toBeInTheDocument()
     }
   })
 
-  it('renders 5 day columns', () => {
+  it('renders 7 day columns', () => {
     render(
       <WeekGrid referenceDate={MONDAY} events={[]} pendingEvents={[]} />
     )
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 7; i++) {
       expect(screen.getByTestId(`day-column-${i}`)).toBeInTheDocument()
     }
   })

@@ -5,7 +5,7 @@ import { addDays, parseEventDate, startOfWeek, formatTime } from '../../utils/da
 import { EventBlock } from './EventBlock'
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i) // 0–23
-const DAYS = 5 // Mon–Fri
+const DAYS = 7 // Mon–Sun
 
 interface WeekGridProps {
   referenceDate: Date
