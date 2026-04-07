@@ -1,0 +1,8 @@
+{
+  "id": "draft-abc123",
+  "message": {
+    "id": "msg-xyz789",
+    "threadId": "thread-001",
+    "labelIds": ["DRAFT"]
+  }
+}
