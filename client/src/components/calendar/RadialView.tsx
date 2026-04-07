@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
 import type { CalendarEvent } from '../../api/calendar'
 import type { PendingEvent } from '../../store/pendingEventsStore'
@@ -11,6 +11,8 @@ interface RadialViewProps {
   timeRange?: TimeRange
   events: CalendarEvent[]
   pendingEvents: PendingEvent[]
+  zoomedDay?: number | null
+  onZoomDay?: (day: number | null) => void
   onEventClick?: (event: CalendarEvent) => void
   onPendingClick?: (event: PendingEvent) => void
 }
@@ -25,21 +27,18 @@ export function RadialView({
   timeRange = 'week',
   events,
   pendingEvents,
+  zoomedDay = null,
+  onZoomDay = () => {},
   onEventClick,
   onPendingClick,
 }: RadialViewProps) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const [zoomedSegment, setZoomedSegment] = useState<number | null>(null)
 
   const monday = startOfWeek(referenceDate)
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
 
   // Month mode: build list of weeks in the month
   const monthWeeks = buildMonthWeeks(referenceDate)
-
-  useEffect(() => {
-    setZoomedSegment(null)
-  }, [timeRange, referenceDate])
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -53,24 +52,23 @@ export function RadialView({
     const g = svg.append('g').attr('transform', `translate(${cx},${cy})`)
 
     if (timeRange === 'week') {
-      if (zoomedSegment === null) {
-        renderFullWeek(g, weekDays, events, pendingEvents, onEventClick, onPendingClick, setZoomedSegment)
+      if (zoomedDay === null) {
+        renderFullWeek(g, weekDays, events, pendingEvents, onEventClick, onPendingClick, onZoomDay)
       } else {
-        renderZoomedDay(g, weekDays[zoomedSegment], zoomedSegment, events, pendingEvents, onEventClick, onPendingClick, () => setZoomedSegment(null))
+        renderZoomedDay(g, weekDays[zoomedDay], zoomedDay, events, pendingEvents, onEventClick, onPendingClick, () => onZoomDay(null))
       }
     } else {
-      if (zoomedSegment === null) {
-        renderMonthRadial(g, monthWeeks, referenceDate, events, pendingEvents, onEventClick, onPendingClick, setZoomedSegment)
+      if (zoomedDay === null) {
+        renderMonthRadial(g, monthWeeks, referenceDate, events, pendingEvents, onEventClick, onPendingClick, onZoomDay)
       } else {
-        // Zoomed into a week — show that week's days
-        const weekDaysZoomed = monthWeeks[zoomedSegment]
+        // Zoomed into a week — show that week's days as a full-week radial
+        const weekDaysZoomed = monthWeeks[zoomedDay]
         renderFullWeek(g, weekDaysZoomed, events, pendingEvents, onEventClick, onPendingClick, (idx) => {
-          if (idx === -1) setZoomedSegment(null)
-          // could zoom into day here in future
+          if (idx === -1) onZoomDay(null)
         }, true)
       }
     }
-  }, [referenceDate, timeRange, events, pendingEvents, zoomedSegment])
+  }, [referenceDate, timeRange, events, pendingEvents, zoomedDay])
 
   return (
     <div data-testid="radial-view" className="flex items-center justify-center h-full w-full">
@@ -422,7 +420,7 @@ function tailwindColorToHex(cls: string, isBorder: boolean): string {
 }
 
 /** Build weeks (Mon–Sun arrays) covering the reference month */
-function buildMonthWeeks(date: Date): Date[][] {
+export function buildMonthWeeks(date: Date): Date[][] {
   const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1)
   const lastOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0)
 

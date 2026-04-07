@@ -6,6 +6,7 @@ interface StatsBarProps {
   rangeLabel: string
   onPrev: () => void
   onNext: () => void
+  workdays?: number
 }
 
 interface Stats {
@@ -14,21 +15,21 @@ interface Stats {
   efficiencyPct: number
 }
 
-function computeStats(events: CalendarEvent[]): Stats {
+function computeStats(events: CalendarEvent[], workdays: number): Stats {
   const meetingCount = events.length
   const totalMins = events.reduce(
     (sum, e) => sum + eventDurationMinutes(e.start, e.end),
     0
   )
   const totalMeetingHrs = Math.round((totalMins / 60) * 10) / 10
-  // Efficiency: fraction of 8-hr workday (Mon-Fri) spent in meetings
-  const workdayMins = 5 * 8 * 60
+  // Efficiency: fraction of available work hours spent in meetings
+  const workdayMins = workdays * 8 * 60
   const efficiencyPct = Math.min(100, Math.round((totalMins / workdayMins) * 100))
   return { meetingCount, totalMeetingHrs, efficiencyPct }
 }
 
-export function StatsBar({ events, rangeLabel, onPrev, onNext }: StatsBarProps) {
-  const { meetingCount, totalMeetingHrs, efficiencyPct } = computeStats(events)
+export function StatsBar({ events, rangeLabel, onPrev, onNext, workdays = 5 }: StatsBarProps) {
+  const { meetingCount, totalMeetingHrs, efficiencyPct } = computeStats(events, workdays)
 
   return (
     <div

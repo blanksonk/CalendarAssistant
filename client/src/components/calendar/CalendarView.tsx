@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useCalendar, type TimeRange, type DisplayMode } from '../../hooks/useCalendar'
 import { usePendingEventsStore, type PendingEvent } from '../../store/pendingEventsStore'
 import type { CalendarEvent } from '../../api/calendar'
-import { addDays, formatShortDate, startOfWeek } from '../../utils/dates'
+import { addDays, formatShortDate, startOfWeek, parseEventDate } from '../../utils/dates'
 import { StatsBar } from './StatsBar'
 import { WeekGrid } from './WeekGrid'
 import { MonthGrid } from './MonthGrid'
-import { RadialView } from './RadialView'
+import { RadialView, buildMonthWeeks } from './RadialView'
 
 interface CalendarViewProps {
   onEventClick?: (event: CalendarEvent) => void
@@ -17,11 +17,43 @@ export function CalendarView({ onEventClick, onPendingClick }: CalendarViewProps
   const [timeRange, setTimeRange] = useState<TimeRange>('week')
   const [displayMode, setDisplayMode] = useState<DisplayMode>('radial')
   const [referenceDate, setReferenceDate] = useState(new Date())
+  const [zoomedDay, setZoomedDay] = useState<number | null>(null)
   const pendingEvents = usePendingEventsStore((s) => s.events)
 
   const { events } = useCalendar(timeRange, referenceDate)
 
-  const rangeLabel = buildRangeLabel(timeRange, referenceDate)
+  // Reset zoom whenever the user navigates or changes view mode
+  useEffect(() => { setZoomedDay(null) }, [timeRange, referenceDate, displayMode])
+
+  // Derive what the StatsBar should display based on current zoom state
+  let visibleEvents: CalendarEvent[] = events
+  let visibleLabel: string = buildRangeLabel(timeRange, referenceDate)
+  let workdays: number = timeRange === 'week' ? 5 : 20
+
+  if (displayMode === 'radial' && zoomedDay !== null) {
+    if (timeRange === 'week') {
+      // Zoomed into a single day
+      const day = addDays(startOfWeek(referenceDate), zoomedDay)
+      visibleEvents = events.filter(
+        (e) => parseEventDate(e.start).toDateString() === day.toDateString()
+      )
+      visibleLabel = day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      workdays = 1
+    } else {
+      // Zoomed into a week within the month
+      const weeks = buildMonthWeeks(referenceDate)
+      const weekDays = weeks[zoomedDay] ?? []
+      const dateStrings = new Set(weekDays.map((d) => d.toDateString()))
+      visibleEvents = events.filter(
+        (e) => dateStrings.has(parseEventDate(e.start).toDateString())
+      )
+      const mon = weekDays[0]
+      const sun = weekDays[6]
+      if (mon && sun) visibleLabel = `${formatShortDate(mon)} – ${formatShortDate(sun)}`
+      workdays = 5
+    }
+  }
+
   const handlePrev = () => setReferenceDate(navigate(timeRange, referenceDate, -1))
   const handleNext = () => setReferenceDate(navigate(timeRange, referenceDate, 1))
 
@@ -54,10 +86,11 @@ export function CalendarView({ onEventClick, onPendingClick }: CalendarViewProps
 
       {/* Stats bar with navigation */}
       <StatsBar
-        events={events}
-        rangeLabel={rangeLabel}
+        events={visibleEvents}
+        rangeLabel={visibleLabel}
         onPrev={handlePrev}
         onNext={handleNext}
+        workdays={workdays}
       />
 
       {/* Calendar panel */}
@@ -68,6 +101,8 @@ export function CalendarView({ onEventClick, onPendingClick }: CalendarViewProps
             timeRange={timeRange}
             events={events}
             pendingEvents={pendingEvents}
+            zoomedDay={zoomedDay}
+            onZoomDay={setZoomedDay}
             onEventClick={onEventClick}
             onPendingClick={onPendingClick}
           />
