@@ -94,7 +94,8 @@ The full granular step list is in `docs/PLANNING.md`. Current status:
 
 - ✅ Step 1: Documentation (README, PLANNING.md, .gitignore)
 - ✅ Step 2: Project scaffold
-- ⬜ Step 3a–3b: Database models + migrations
+- ✅ Step 3a: SQLAlchemy models + unit tests
+- ⬜ Step 3b: Alembic migrations
 - ⬜ Step 4a–4c: Auth
 - ⬜ Step 5a–5g: Calendar
 - ⬜ Step 6a–6i: Chat + Agent
