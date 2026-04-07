@@ -29,11 +29,23 @@ export const handlers = [
   // Health check
   http.get('/api/health', () => HttpResponse.json({ status: 'ok (mocked)' })),
 
-  // Chat (stub — returns a static greeting stream)
+  // Chat — returns a realistic mock SSE stream
   http.post('/api/chat', () =>
     new HttpResponse(
-      'data: {"type":"text","delta":"Hi! I\'m your calendar assistant. Chat is coming soon — auth and calendar are live! Try switching between Week, Month, and Radial views."}\n\ndata: {"type":"done"}\n\n',
-      { headers: { 'Content-Type': 'text/event-stream' } }
+      [
+        'data: {"type":"tool_start","tool_name":"list_events","tool_use_id":"tc1"}\n\n',
+        'data: {"type":"tool_result","tool_name":"list_events","tool_use_id":"tc1","duration_ms":120}\n\n',
+        'data: {"type":"text","delta":"You have "}\n\n',
+        'data: {"type":"text","delta":"13 meetings"}\n\n',
+        'data: {"type":"text","delta":" this week. Your best focus block is **Tuesday 10am–1pm**."}\n\n',
+        'data: {"type":"done"}\n\n',
+      ].join(''),
+      {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'X-Chat-Session-Id': 'mock-session-id',
+        },
+      }
     )
   ),
 

@@ -1,31 +1,33 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '../../hooks/useAuth'
+import { ChatInput } from './ChatInput'
+import { CommandPalette } from './CommandPalette'
+import { ChatMessage, Message, ToolCall } from './ChatMessage'
+import { EventProposalCard, ProposedEvent } from './EventProposalCard'
+import { DraftCard, DraftData } from './DraftCard'
+import { usePendingEventsStore } from '../../store/pendingEventsStore'
 
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
+type SpecialCard =
+  | { type: 'propose_event'; data: ProposedEvent }
+  | { type: 'draft_card'; data: DraftData }
+
+interface ExtendedMessage extends Message {
+  cards?: SpecialCard[]
 }
 
 interface ChatPanelProps {
   onTabSwitch?: (tab: 'calendar' | 'insights') => void
 }
 
-const QUICK_ACTIONS = [
-  { label: 'Schedule a meeting', text: 'Help me schedule a meeting' },
-  { label: 'This week summary', text: "What does my week look like?" },
-  { label: 'Find free time', text: 'Find me a 1-hour free slot this week' },
-  { label: 'Draft email', text: 'Draft a follow-up email' },
-]
-
 export function ChatPanel({ onTabSwitch }: ChatPanelProps) {
   const { user } = useAuth()
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<ExtendedMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const addPendingEvent = usePendingEventsStore((s) => s.addEvent)
 
   // Proactive greeting on mount
   useEffect(() => {
@@ -33,12 +35,11 @@ export function ChatPanel({ onTabSwitch }: ChatPanelProps) {
     const firstName = user.name.split(' ')[0]
     const hour = new Date().getHours()
     const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-
     setMessages([
       {
         id: 'greeting',
         role: 'assistant',
-        content: `${greeting}, ${firstName}! 👋 I can see you have **13 meetings** this week — including back-to-back sessions Thursday morning. Your best focus block looks like **Tuesday 10am–1pm**.\n\nWhat can I help you with today?`,
+        content: `${greeting}, ${firstName}! I can help you schedule meetings, find free time, draft emails, and analyse your calendar patterns.\n\nWhat can I help you with today?`,
       },
     ])
   }, [user?.id])
@@ -60,17 +61,30 @@ export function ChatPanel({ onTabSwitch }: ChatPanelProps) {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
+  const updateMessage = useCallback(
+    (id: string, updater: (msg: ExtendedMessage) => ExtendedMessage) => {
+      setMessages((prev) => prev.map((m) => (m.id === id ? updater(m) : m)))
+    },
+    []
+  )
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || isStreaming) return
     setShowPalette(false)
     setInput('')
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text }
-    setMessages((prev) => [...prev, userMsg])
+    const userMsg: ExtendedMessage = { id: `u-${Date.now()}`, role: 'user', content: text }
+    const assistantId = `a-${Date.now() + 1}`
+    const assistantMsg: ExtendedMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      isStreaming: true,
+      toolCalls: [],
+      cards: [],
+    }
 
-    // Add streaming assistant message
-    const assistantId = (Date.now() + 1).toString()
-    setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }])
+    setMessages((prev) => [...prev, userMsg, assistantMsg])
     setIsStreaming(true)
 
     try {
@@ -78,8 +92,12 @@ export function ChatPanel({ onTabSwitch }: ChatPanelProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, chat_session_id: chatSessionId }),
       })
+
+      // Capture chat session ID from response header
+      const newSessionId = res.headers.get('X-Chat-Session-Id')
+      if (newSessionId) setChatSessionId(newSessionId)
 
       if (!res.body) throw new Error('No stream')
       const reader = res.body.getReader()
@@ -91,45 +109,110 @@ export function ChatPanel({ onTabSwitch }: ChatPanelProps) {
         if (done) break
         buffer += decoder.decode(value, { stream: true })
 
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() ?? ''
 
-        for (const line of lines) {
+        for (const part of parts) {
+          const line = part.trim()
           if (!line.startsWith('data: ')) continue
           try {
             const event = JSON.parse(line.slice(6))
-            if (event.type === 'text') {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId ? { ...m, content: m.content + event.delta } : m
-                )
-              )
-            } else if (event.type === 'switch_tab') {
-              onTabSwitch?.(event.tab)
-            } else if (event.type === 'done') {
-              break
-            }
-          } catch {}
+            handleSseEvent(event, assistantId)
+          } catch {
+            // ignore malformed lines
+          }
         }
       }
-    } catch (err) {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? { ...m, content: 'Sorry, something went wrong. Please try again.' }
-            : m
-        )
-      )
+    } catch {
+      updateMessage(assistantId, (m) => ({
+        ...m,
+        content: m.content || 'Sorry, something went wrong. Please try again.',
+        isStreaming: false,
+      }))
     } finally {
+      updateMessage(assistantId, (m) => ({ ...m, isStreaming: false }))
       setIsStreaming(false)
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage(input)
+  const handleSseEvent = (event: Record<string, unknown>, assistantId: string) => {
+    switch (event.type) {
+      case 'text':
+        updateMessage(assistantId, (m) => ({
+          ...m,
+          content: m.content + (event.delta as string ?? ''),
+        }))
+        break
+
+      case 'tool_start':
+        updateMessage(assistantId, (m) => ({
+          ...m,
+          toolCalls: [
+            ...(m.toolCalls ?? []),
+            {
+              id: event.tool_use_id as string,
+              toolName: event.tool_name as string,
+              status: 'running',
+            } as ToolCall,
+          ],
+        }))
+        break
+
+      case 'tool_result':
+        updateMessage(assistantId, (m) => ({
+          ...m,
+          toolCalls: (m.toolCalls ?? []).map((tc) =>
+            tc.id === event.tool_use_id
+              ? {
+                  ...tc,
+                  status: (event.error ? 'error' : 'done') as ToolCall['status'],
+                  durationMs: event.duration_ms as number | undefined,
+                }
+              : tc
+          ),
+        }))
+        break
+
+      case 'propose_event': {
+        const proposed = event as unknown as ProposedEvent
+        // Also push to global store so it appears on the calendar
+        addPendingEvent({
+          id: proposed.id,
+          title: proposed.title,
+          start: new Date(proposed.start),
+          end: new Date(proposed.end),
+          attendees: proposed.attendees,
+          description: proposed.description,
+        })
+        updateMessage(assistantId, (m) => ({
+          ...m,
+          cards: [...(m.cards ?? []), { type: 'propose_event', data: proposed }],
+        }))
+        break
+      }
+
+      case 'draft_card': {
+        const draft = event as unknown as DraftData
+        updateMessage(assistantId, (m) => ({
+          ...m,
+          cards: [...(m.cards ?? []), { type: 'draft_card', data: draft }],
+        }))
+        break
+      }
+
+      case 'switch_tab':
+        onTabSwitch?.(event.tab as 'calendar' | 'insights')
+        break
+
+      case 'done':
+        updateMessage(assistantId, (m) => ({ ...m, isStreaming: false }))
+        break
     }
+  }
+
+  const handlePaletteSelect = (text: string) => {
+    setInput(text)
+    sendMessage(text)
   }
 
   return (
@@ -143,79 +226,45 @@ export function ChatPanel({ onTabSwitch }: ChatPanelProps) {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
-                msg.role === 'user'
-                  ? 'bg-blue-600 text-white rounded-br-sm'
-                  : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-              }`}
-              dangerouslySetInnerHTML={{
-                __html: msg.content
-                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                  .replace(/\n/g, '<br />'),
-              }}
-            />
+          <div key={msg.id} className="flex flex-col gap-2">
+            <ChatMessage message={msg} />
+            {msg.cards && msg.cards.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {msg.cards.map((card, i) =>
+                  card.type === 'propose_event' ? (
+                    <EventProposalCard
+                      key={i}
+                      event={card.data}
+                      onRevise={(prefill) => setInput(prefill)}
+                    />
+                  ) : (
+                    <DraftCard
+                      key={i}
+                      draft={card.data}
+                      onRevise={(prefill) => setInput(prefill)}
+                    />
+                  )
+                )}
+              </div>
+            )}
           </div>
         ))}
-        {isStreaming && messages[messages.length - 1]?.content === '' && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2 flex gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:0ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:150ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:300ms]" />
-            </div>
-          </div>
-        )}
         <div ref={bottomRef} />
       </div>
 
       {/* Command palette */}
       {showPalette && (
-        <div className="mx-3 mb-2 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-          <p className="px-3 py-2 text-xs font-medium text-gray-400 border-b border-gray-100">
-            Quick actions
-          </p>
-          {QUICK_ACTIONS.map((action) => (
-            <button
-              key={action.label}
-              onClick={() => sendMessage(action.text)}
-              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
+        <CommandPalette onSelect={handlePaletteSelect} onClose={() => setShowPalette(false)} />
       )}
 
       {/* Input */}
-      <div className="px-3 pb-3 shrink-0">
-        <div className="flex items-end gap-2 bg-gray-100 rounded-2xl px-3 py-2">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask anything… (⌘K for shortcuts)"
-            rows={1}
-            disabled={isStreaming}
-            className="flex-1 bg-transparent text-sm resize-none outline-none text-gray-800 placeholder-gray-400 max-h-32 disabled:opacity-50"
-            style={{ minHeight: '24px' }}
-          />
-          <button
-            onClick={() => sendMessage(input)}
-            disabled={!input.trim() || isStreaming}
-            className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-700 shrink-0"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
-            </svg>
-          </button>
-        </div>
-      </div>
+      <ChatInput
+        value={input}
+        onChange={setInput}
+        onSubmit={sendMessage}
+        disabled={isStreaming}
+        onPaletteToggle={() => setShowPalette((v) => !v)}
+      />
     </div>
   )
 }
