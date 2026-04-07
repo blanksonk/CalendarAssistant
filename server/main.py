@@ -34,9 +34,11 @@ app.add_middleware(
 from server.routes import auth
 
 app.include_router(auth.router, prefix="/api/auth")
+from server.routes import calendar
+
+app.include_router(calendar.router, prefix="/api/calendar")
 # Remaining routes added as implemented:
-# from server.routes import calendar, chat, insights
-# app.include_router(calendar.router, prefix="/api/calendar")
+# from server.routes import chat, insights
 # app.include_router(chat.router, prefix="/api/chat")
 # app.include_router(insights.router, prefix="/api/insights")
 
