@@ -56,6 +56,7 @@ export function AppShell() {
             {(['calendar', 'insights'] as MainTab[]).map((tab) => (
               <button
                 key={tab}
+                data-testid={`main-tab-${tab}`}
                 onClick={() => setActiveTab(tab)}
                 className={`px-3 py-1 rounded-md text-xs font-medium capitalize transition-colors ${
                   activeTab === tab

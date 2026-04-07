@@ -2,9 +2,12 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { ChatInput } from './ChatInput'
 import { CommandPalette } from './CommandPalette'
-import { ChatMessage, Message, ToolCall } from './ChatMessage'
-import { EventProposalCard, ProposedEvent } from './EventProposalCard'
-import { DraftCard, DraftData } from './DraftCard'
+import { ChatMessage } from './ChatMessage'
+import type { Message, ToolCall } from './ChatMessage'
+import { EventProposalCard } from './EventProposalCard'
+import type { ProposedEvent } from './EventProposalCard'
+import { DraftCard } from './DraftCard'
+import type { DraftData } from './DraftCard'
 import { usePendingEventsStore } from '../../store/pendingEventsStore'
 
 type SpecialCard =
@@ -228,7 +231,7 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed }: ChatPa
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-testid="chat-panel" className="flex flex-col h-full">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 shrink-0">
         <h2 className="text-sm font-semibold text-gray-800">Assistant</h2>

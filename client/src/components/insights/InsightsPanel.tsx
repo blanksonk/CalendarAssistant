@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchInsights, InsightsData, TopPerson, TopSeries as TopSeriesData } from '../../api/insights'
+import { fetchInsights } from '../../api/insights'
+import type { InsightsData, TopPerson, TopSeries as TopSeriesData } from '../../api/insights'
 import { WeeklyFocus } from './WeeklyFocus'
 import { StatGrid } from './StatGrid'
 import { TopPeople } from './TopPeople'
@@ -55,7 +56,7 @@ export function InsightsPanel({ onPromptAgent }: InsightsPanelProps) {
   }
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-4 flex flex-col gap-4">
+    <div data-testid="insights-panel" className="h-full overflow-y-auto px-4 py-4 flex flex-col gap-4">
       {/* Header + week toggle */}
       <div className="flex items-center justify-between shrink-0">
         <h2 className="text-sm font-semibold text-gray-800">Insights</h2>
