@@ -1,0 +1,10 @@
+{
+  "type": "tool_use",
+  "model": "claude-sonnet-4-6",
+  "tool_name": "list_events",
+  "tool_input": {
+    "start": "2026-04-07T00:00:00Z",
+    "end": "2026-04-07T23:59:59Z"
+  },
+  "stop_reason": "tool_use"
+}

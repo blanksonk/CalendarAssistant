@@ -1,0 +1,6 @@
+{
+  "type": "text",
+  "model": "claude-sonnet-4-6",
+  "content": "Hello! How can I help you today?",
+  "stop_reason": "end_turn"
+}
