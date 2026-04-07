@@ -37,9 +37,11 @@ app.include_router(auth.router, prefix="/api/auth")
 from server.routes import calendar
 
 app.include_router(calendar.router, prefix="/api/calendar")
+from server.routes import chat
+
+app.include_router(chat.router, prefix="/api/chat")
 # Remaining routes added as implemented:
-# from server.routes import chat, insights
-# app.include_router(chat.router, prefix="/api/chat")
+# from server.routes import insights
 # app.include_router(insights.router, prefix="/api/insights")
 
 
