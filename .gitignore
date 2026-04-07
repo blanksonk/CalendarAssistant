@@ -1,0 +1,46 @@
+# Internal planning docs
+docs/PLANNING.md
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+server/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+.pytest_cache/
+
+# Node
+node_modules/
+client/node_modules/
+client/dist/
+.npm
+
+# Build output
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Railway
+.railway/
