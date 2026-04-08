@@ -22,4 +22,4 @@ COPY alembic.ini ./
 COPY --from=frontend /app/client/dist ./client/dist
 
 EXPOSE 8000
-CMD uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["/bin/sh", "-c", "uvicorn server.main:app --host 0.0.0.0 --port $PORT"]
