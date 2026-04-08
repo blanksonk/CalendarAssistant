@@ -27,7 +27,7 @@ INSIGHTS_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "week": {
                     "type": "string",
                     "description": (
-                        "ISO date of the Monday that starts the week to analyse (e.g. '2026-04-06'). "
+                        "ISO date of the Monday that starts the week to analyze (e.g. '2026-04-06'). "
                         "Defaults to the current week if omitted."
                     ),
                 },
