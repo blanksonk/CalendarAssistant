@@ -3,7 +3,7 @@ nixPkgs = ["python312"]
 
 [phases.install]
 cmds = [
-  "pip install -r server/requirements.txt",
+  "python3 -m pip install -r server/requirements.txt",
   "npm install --prefix client"
 ]
 
