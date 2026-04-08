@@ -61,6 +61,22 @@ describe('WeekGrid', () => {
     expect(screen.getByTestId('event-block-evt-d2-h10')).toBeInTheDocument()
   })
 
+  it('places all-day event (date string) in correct day column', () => {
+    // Friday = dayOffset 4 from Monday April 6
+    const friday: CalendarEvent = {
+      id: 'evt-allday-fri',
+      summary: 'All-day Friday event',
+      start: { date: '2026-04-10' }, // Friday, no time
+      end: { date: '2026-04-11' },
+    }
+    render(
+      <WeekGrid referenceDate={MONDAY} events={[friday]} pendingEvents={[]} />
+    )
+    // Should appear in day column 4 (Friday), not column 2 (Wednesday) or 3 (Thursday)
+    const fridayColumn = screen.getByTestId('day-column-4')
+    expect(fridayColumn.querySelector('[data-testid="event-block-evt-allday-fri"]')).toBeInTheDocument()
+  })
+
   it('renders ghost block for pending events with dashed style', () => {
     const pending = makePending(0) // Monday
     render(

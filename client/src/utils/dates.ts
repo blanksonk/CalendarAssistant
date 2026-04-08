@@ -49,7 +49,15 @@ export function formatTime(date: Date): string {
 
 /** Parse an event's start/end to a Date (handles dateTime and all-day date strings) */
 export function parseEventDate(dt: { dateTime?: string; date?: string }): Date {
-  return new Date(dt.dateTime ?? dt.date ?? Date.now())
+  if (dt.dateTime) return new Date(dt.dateTime)
+  if (dt.date) {
+    // All-day events from Google have no time component (e.g. "2026-04-10").
+    // new Date("2026-04-10") parses as UTC midnight, which shifts the date
+    // back by 1 day in negative-UTC timezones. Use the local constructor instead.
+    const [year, month, day] = dt.date.split('-').map(Number)
+    return new Date(year, month - 1, day)
+  }
+  return new Date(Date.now())
 }
 
 /** Duration of an event in minutes */
