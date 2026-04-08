@@ -1,4 +1,5 @@
-import { ToolIndicator, ToolStatus } from './ToolIndicator'
+import { ToolIndicator } from './ToolIndicator'
+import type { ToolStatus } from './ToolIndicator'
 
 export interface ToolCall {
   id: string

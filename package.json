@@ -2,7 +2,7 @@
   "name": "calendar-assistant",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n client,server -c cyan,green \"npm run dev --prefix client\" \"python -m uvicorn server.main:app --reload --port 8000\"",
+    "dev": "concurrently -n client,server -c cyan,green \"npm run dev --prefix client\" \"server/.venv/bin/python -m uvicorn server.main:app --reload --port 8000\"",
     "build": "npm run build --prefix client",
     "test": "npm run test --prefix client"
   },

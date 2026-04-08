@@ -1,4 +1,4 @@
-import { TopPerson } from '../../api/insights'
+import type { TopPerson } from '../../api/insights'
 
 interface TopPeopleProps {
   people: TopPerson[]

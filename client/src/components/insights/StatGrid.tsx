@@ -1,4 +1,4 @@
-import { AtAGlance, MeetingQuality, TimeBreakdown } from '../../api/insights'
+import type { AtAGlance, MeetingQuality, TimeBreakdown } from '../../api/insights'
 
 interface StatCardProps {
   label: string

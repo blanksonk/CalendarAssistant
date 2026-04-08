@@ -1,4 +1,4 @@
-import { TopSeries as TopSeriesData } from '../../api/insights'
+import type { TopSeries as TopSeriesData } from '../../api/insights'
 
 interface TopSeriesProps {
   series: TopSeriesData[]
