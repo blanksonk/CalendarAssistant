@@ -110,6 +110,16 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed }: ChatPa
         body: JSON.stringify({ message: text, chat_session_id: chatSessionId }),
       })
 
+      // Surface HTTP errors (auth, rate limit, server errors)
+      if (!res.ok) {
+        let detail = `Error ${res.status}`
+        try {
+          const err = await res.json()
+          detail = err.detail || detail
+        } catch { /* not JSON */ }
+        throw new Error(detail)
+      }
+
       // Capture chat session ID from response header
       const newSessionId = res.headers.get('X-Chat-Session-Id')
       if (newSessionId) setChatSessionId(newSessionId)
@@ -138,10 +148,11 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed }: ChatPa
           }
         }
       }
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
       updateMessage(assistantId, (m) => ({
         ...m,
-        content: m.content || 'Sorry, something went wrong. Please try again.',
+        content: m.content || `⚠️ ${msg}`,
         isStreaming: false,
       }))
     } finally {

@@ -126,14 +126,14 @@ async def chat(
     history.append({"role": "user", "content": body.message})
     creds = _build_creds(token)
 
-    # Accumulate the full assistant reply so we can persist it after streaming
+    # Accumulate the full assistant reply so we can persist it inline after streaming
     collected_text: list[str] = []
 
     async def _stream():
+        import json as _json
         async for chunk in claude_service.run_agent(history, creds=creds):
             yield chunk
             # Collect text deltas for persistence
-            import json as _json
             try:
                 for part in chunk.split("\n\n"):
                     part = part.strip()
@@ -141,18 +141,17 @@ async def chat(
                         event = _json.loads(part[6:])
                         if event.get("type") == "text":
                             collected_text.append(event.get("delta", ""))
-                        elif event.get("type") == "done":
-                            # Persist assistant reply
-                            full_reply = "".join(collected_text)
-                            if full_reply:
-                                import asyncio
-                                asyncio.create_task(
-                                    _persist_message(
-                                        current_user.id, session.id, "assistant", full_reply, db
-                                    )
-                                )
             except Exception:
                 pass
+
+        # Persist assistant reply after the stream is fully exhausted
+        # (DB session is still alive — we're still inside the request lifecycle)
+        full_reply = "".join(collected_text)
+        if full_reply:
+            try:
+                await _persist_message(current_user.id, session.id, "assistant", full_reply, db)
+            except Exception:
+                pass  # non-fatal — message just won't be in history next time
 
     return StreamingResponse(
         _stream(),
