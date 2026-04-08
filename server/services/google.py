@@ -14,6 +14,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/contacts.readonly",
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
@@ -70,3 +71,7 @@ def calendar_client(creds: Credentials):
 
 def gmail_client(creds: Credentials):
     return build("gmail", "v1", credentials=creds, cache_discovery=False)
+
+
+def people_client(creds: Credentials):
+    return build("people", "v1", credentials=creds, cache_discovery=False)

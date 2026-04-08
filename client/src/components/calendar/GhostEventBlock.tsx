@@ -1,4 +1,4 @@
-import { PendingEvent } from '../../store/pendingEventsStore'
+import { type PendingEvent } from '../../store/pendingEventsStore'
 import { formatTime } from '../../utils/dates'
 
 type GhostVariant = 'week' | 'month' | 'radial'

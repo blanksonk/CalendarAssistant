@@ -24,11 +24,11 @@ CALENDAR_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "properties": {
                 "start": {
                     "type": "string",
-                    "description": "ISO 8601 datetime for the start of the range (UTC).",
+                    "description": "ISO 8601 datetime with timezone offset for the start of the range (e.g. 2026-04-07T09:00:00-05:00).",
                 },
                 "end": {
                     "type": "string",
-                    "description": "ISO 8601 datetime for the end of the range (UTC).",
+                    "description": "ISO 8601 datetime with timezone offset for the end of the range (e.g. 2026-04-07T17:00:00-05:00).",
                 },
             },
             "required": ["start", "end"],
@@ -72,16 +72,20 @@ CALENDAR_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "title": {"type": "string", "description": "Event title."},
                 "start": {
                     "type": "string",
-                    "description": "ISO 8601 datetime for the event start (UTC).",
+                    "description": "ISO 8601 datetime with timezone offset for the event start in the user's local time (e.g. 2026-04-07T11:30:00-05:00).",
                 },
                 "end": {
                     "type": "string",
-                    "description": "ISO 8601 datetime for the event end (UTC).",
+                    "description": "ISO 8601 datetime with timezone offset for the event end in the user's local time (e.g. 2026-04-07T12:30:00-05:00).",
                 },
                 "attendees": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of attendee email addresses.",
+                    "description": (
+                        "List of attendee email addresses (e.g. ['emily@example.com']). "
+                        "Must be real email addresses — look them up from list_events if needed. "
+                        "Do not omit this field when the user specified attendees."
+                    ),
                 },
                 "description": {
                     "type": "string",
@@ -89,6 +93,29 @@ CALENDAR_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 },
             },
             "required": ["title", "start", "end"],
+        },
+    },
+    {
+        "name": "delete_event",
+        "description": (
+            "Permanently delete a calendar event by its ID. "
+            "Use this when the user wants to remove or cancel an event — for example, "
+            "after consolidating overlapping meetings. Always confirm with the user before deleting. "
+            "The event ID comes from a prior list_events call."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_id": {
+                    "type": "string",
+                    "description": "The Google Calendar event ID to delete.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Human-readable event title (for the tool result summary).",
+                },
+            },
+            "required": ["event_id", "title"],
         },
     },
 ]
@@ -116,8 +143,9 @@ def execute_get_free_slots(tool_input: dict[str, Any], creds: Credentials) -> di
     duration_mins = int(tool_input["duration_mins"])
     num_suggestions = int(tool_input.get("num_suggestions", 3))
 
-    day_start = datetime.fromisoformat(f"{date_str}T{_WORK_START_HOUR:02d}:00:00+00:00")
-    day_end = datetime.fromisoformat(f"{date_str}T{_WORK_END_HOUR:02d}:00:00+00:00")
+    # Build timezone-aware datetimes using the date string as-is (already local date from Claude)
+    day_start = datetime.fromisoformat(f"{date_str}T{_WORK_START_HOUR:02d}:00:00").replace(tzinfo=timezone.utc)
+    day_end = datetime.fromisoformat(f"{date_str}T{_WORK_END_HOUR:02d}:00:00").replace(tzinfo=timezone.utc)
 
     freebusy = cal_service.get_free_slots(creds, day_start, day_end)
     busy_periods = freebusy.get("calendars", {}).get("primary", {}).get("busy", [])
@@ -130,30 +158,35 @@ def execute_get_free_slots(tool_input: dict[str, Any], creds: Credentials) -> di
         busy.append((b_start, b_end))
     busy.sort(key=lambda x: x[0])
 
-    # Find free windows
+    # Walk the work day greedily, yielding a slot whenever the window is free
     duration = timedelta(minutes=duration_mins)
     slots: list[dict[str, str]] = []
     cursor = day_start
 
-    for b_start, b_end in busy:
-        if cursor + duration <= b_start:
+    while cursor + duration <= day_end and len(slots) < num_suggestions:
+        slot_end = cursor + duration
+        # Find a busy block that overlaps [cursor, slot_end)
+        overlap: tuple[datetime, datetime] | None = next(
+            (b for b in busy if b[0] < slot_end and b[1] > cursor), None
+        )
+        if overlap is None:
+            # Slot is free
             slots.append({
                 "start": cursor.isoformat().replace("+00:00", "Z"),
-                "end": (cursor + duration).isoformat().replace("+00:00", "Z"),
+                "end": slot_end.isoformat().replace("+00:00", "Z"),
             })
-        if b_end > cursor:
-            cursor = b_end
-        if len(slots) >= num_suggestions:
-            break
+            cursor = slot_end
+        else:
+            # Jump past the busy block
+            cursor = overlap[1]
 
-    # Check remaining time after last busy block
-    if len(slots) < num_suggestions and cursor + duration <= day_end:
-        slots.append({
-            "start": cursor.isoformat().replace("+00:00", "Z"),
-            "end": (cursor + duration).isoformat().replace("+00:00", "Z"),
-        })
+    return {"free_slots": slots, "date": date_str, "duration_mins": duration_mins}
 
-    return {"free_slots": slots[:num_suggestions], "date": date_str, "duration_mins": duration_mins}
+
+def execute_delete_event(tool_input: dict[str, Any], creds: Credentials) -> dict[str, Any]:
+    """Delete a calendar event and return a confirmation summary."""
+    cal_service.delete_event(creds, tool_input["event_id"])
+    return {"deleted": True, "event_id": tool_input["event_id"], "title": tool_input.get("title", "")}
 
 
 def execute_propose_event(tool_input: dict[str, Any]) -> dict[str, Any]:

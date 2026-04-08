@@ -104,7 +104,19 @@ def insert_event(
     if description:
         event_body["description"] = description
 
-    return service.events().insert(calendarId="primary", body=event_body).execute()
+    return service.events().insert(
+        calendarId="primary", body=event_body, sendUpdates="all"
+    ).execute()
+
+
+def delete_event(
+    creds: Credentials,
+    event_id: str,
+) -> None:
+    """Delete (cancel) an event from the user's primary calendar."""
+    _refresh_if_needed(creds)
+    service = calendar_client(creds)
+    service.events().delete(calendarId="primary", eventId=event_id).execute()
 
 
 def patch_event(

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { PendingEvent, usePendingEventsStore } from '../../store/pendingEventsStore'
+import { type PendingEvent, usePendingEventsStore } from '../../store/pendingEventsStore'
 
 interface EventModalProps {
   event: PendingEvent | null
   onClose: () => void
   onRevise?: (message: string) => void
-  onConfirm?: (event: PendingEvent) => void
+  onConfirm?: (event: PendingEvent) => Promise<void> | void
 }
 
 function formatForInput(date: Date): string {
@@ -15,13 +15,14 @@ function formatForInput(date: Date): string {
 }
 
 export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalProps) {
-  const { removeEvent, updateEvent } = usePendingEventsStore()
+  const { removeEvent } = usePendingEventsStore()
   const [title, setTitle] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [description, setDescription] = useState('')
   const [attendees, setAttendees] = useState('')
   const [reviseText, setReviseText] = useState('')
+  const [saving, setSaving] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
 
   if (!event) return null
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const updated: PendingEvent = {
       ...event,
       title,
@@ -53,8 +54,12 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
       description,
       attendees: attendees ? attendees.split(',').map((a) => a.trim()).filter(Boolean) : [],
     }
-    updateEvent(event.id, updated)
-    onConfirm?.(updated)
+    setSaving(true)
+    try {
+      await onConfirm?.(updated)
+    } finally {
+      setSaving(false)
+    }
     removeEvent(event.id)
     onClose()
   }
@@ -205,10 +210,11 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
           </button>
           <button
             onClick={handleConfirm}
+            disabled={saving}
             aria-label="Save and confirm event"
-            className="flex-1 py-2 text-sm rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700"
+            className="flex-1 py-2 text-sm rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-60"
           >
-            Save &amp; Confirm
+            {saving ? 'Saving…' : 'Save & Confirm'}
           </button>
         </div>
       </div>

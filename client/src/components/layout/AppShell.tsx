@@ -4,7 +4,10 @@ import { CalendarView } from '../calendar/CalendarView'
 import { InsightsPanel } from '../insights/InsightsPanel'
 import { ChatPanel } from '../chat/ChatPanel'
 import { CalendarEventModal } from '../calendar/CalendarEventModal'
-import { usePendingEventsStore } from '../../store/pendingEventsStore'
+import { EventModal } from '../calendar/EventModal'
+import { usePendingEventsStore, type PendingEvent } from '../../store/pendingEventsStore'
+import { createEvent } from '../../api/calendar'
+import { useQueryClient } from '@tanstack/react-query'
 import type { CalendarEvent } from '../../api/calendar'
 
 type MainTab = 'calendar' | 'insights'
@@ -14,7 +17,10 @@ export function AppShell() {
   const [activeTab, setActiveTab] = useState<MainTab>('calendar')
   const [chatInput, setChatInput] = useState('')
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
+  const [selectedPendingEvent, setSelectedPendingEvent] = useState<PendingEvent | null>(null)
+  const [confirmedEventTitle, setConfirmedEventTitle] = useState<string | null>(null)
   const pendingEvents = usePendingEventsStore((s) => s.events)
+  const queryClient = useQueryClient()
 
   // Warn before leaving with pending events
   useEffect(() => {
@@ -27,6 +33,24 @@ export function AppShell() {
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [pendingEvents.length])
+
+  const handleConfirmPending = async (event: PendingEvent) => {
+    try {
+      await createEvent({
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        attendees: event.attendees,
+        description: event.description,
+      })
+      // Invalidate all calendar event queries so the new event appears immediately
+      queryClient.invalidateQueries({ queryKey: ['calendar', 'events'] })
+      // Notify chat panel
+      setConfirmedEventTitle(event.title)
+    } catch (err) {
+      console.error('Failed to create event:', err)
+    }
+  }
 
   // Allow the InsightsPanel to pre-fill the chat input
   const handlePromptAgent = (message: string) => {
@@ -89,7 +113,12 @@ export function AppShell() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel — Calendar or Insights */}
         <div className="flex-1 overflow-hidden">
-          {activeTab === 'calendar' && <CalendarView onEventClick={setSelectedEvent} />}
+          {activeTab === 'calendar' && (
+            <CalendarView
+              onEventClick={setSelectedEvent}
+              onPendingClick={setSelectedPendingEvent}
+            />
+          )}
           {activeTab === 'insights' && (
             <InsightsPanel onPromptAgent={handlePromptAgent} />
           )}
@@ -101,12 +130,25 @@ export function AppShell() {
             onTabSwitch={setActiveTab}
             initialInput={chatInput}
             onInputConsumed={() => setChatInput('')}
+            confirmedEventTitle={confirmedEventTitle}
+            onConfirmedEventConsumed={() => setConfirmedEventTitle(null)}
           />
         </div>
       </div>
 
       {/* Event detail/edit modal — must be outside overflow-hidden containers */}
       <CalendarEventModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+
+      {/* Pending event review/confirm modal */}
+      <EventModal
+        event={selectedPendingEvent}
+        onClose={() => setSelectedPendingEvent(null)}
+        onConfirm={handleConfirmPending}
+        onRevise={(msg) => {
+          setChatInput(msg)
+          setSelectedPendingEvent(null)
+        }}
+      />
     </div>
   )
 }

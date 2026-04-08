@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppShell } from './AppShell'
+
+function renderAppShell() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AppShell />
+    </QueryClientProvider>
+  )
+}
 
 vi.mock('../../hooks/useAuth', () => ({
   useAuth: vi.fn(),
@@ -82,30 +92,30 @@ beforeEach(() => {
 
 describe('AppShell', () => {
   it('renders calendar view by default', () => {
-    render(<AppShell />)
+    renderAppShell()
     expect(screen.getByTestId('calendar-view')).toBeInTheDocument()
     expect(screen.queryByTestId('insights-panel')).not.toBeInTheDocument()
   })
 
   it('renders chat panel at all times', () => {
-    render(<AppShell />)
+    renderAppShell()
     expect(screen.getByTestId('chat-panel')).toBeInTheDocument()
   })
 
   it('shows user email in header', () => {
-    render(<AppShell />)
+    renderAppShell()
     expect(screen.getByText('test@example.com')).toBeInTheDocument()
   })
 
   it('switches to insights panel when Insights tab is clicked', () => {
-    render(<AppShell />)
+    renderAppShell()
     fireEvent.click(screen.getByTestId('main-tab-insights'))
     expect(screen.getByTestId('insights-panel')).toBeInTheDocument()
     expect(screen.queryByTestId('calendar-view')).not.toBeInTheDocument()
   })
 
   it('switches back to calendar when Calendar tab is clicked', () => {
-    render(<AppShell />)
+    renderAppShell()
     fireEvent.click(screen.getByTestId('main-tab-insights'))
     fireEvent.click(screen.getByTestId('main-tab-calendar'))
     expect(screen.getByTestId('calendar-view')).toBeInTheDocument()
@@ -113,14 +123,14 @@ describe('AppShell', () => {
   })
 
   it('agent switch_tab event switches active tab to insights', () => {
-    render(<AppShell />)
+    renderAppShell()
     fireEvent.click(screen.getByTestId('agent-switch-insights'))
     expect(screen.getByTestId('insights-panel')).toBeInTheDocument()
     expect(screen.queryByTestId('calendar-view')).not.toBeInTheDocument()
   })
 
   it('agent switch_tab event switches active tab back to calendar', () => {
-    render(<AppShell />)
+    renderAppShell()
     fireEvent.click(screen.getByTestId('agent-switch-insights'))
     fireEvent.click(screen.getByTestId('agent-switch-calendar'))
     expect(screen.getByTestId('calendar-view')).toBeInTheDocument()
@@ -130,26 +140,26 @@ describe('AppShell', () => {
     vi.mocked(usePendingEventsStore).mockReturnValue([
       { id: 'p1', title: 'Pending', start: new Date(), end: new Date() },
     ] as any)
-    render(<AppShell />)
+    renderAppShell()
     expect(screen.getByText('1 pending')).toBeInTheDocument()
   })
 
   it('prompting agent from InsightsPanel pre-fills chat input', () => {
-    render(<AppShell />)
+    renderAppShell()
     fireEvent.click(screen.getByTestId('main-tab-insights'))
     fireEvent.click(screen.getByTestId('prompt-agent-btn'))
     expect(screen.getByTestId('initial-input')).toHaveTextContent('hello')
   })
 
   it('opens event modal when an event is clicked in CalendarView', () => {
-    render(<AppShell />)
+    renderAppShell()
     fireEvent.click(screen.getByTestId('trigger-event-click'))
     expect(screen.getByTestId('calendar-event-modal')).toBeInTheDocument()
     expect(screen.getByText('Test Event')).toBeInTheDocument()
   })
 
   it('closes event modal when modal requests close', () => {
-    render(<AppShell />)
+    renderAppShell()
     fireEvent.click(screen.getByTestId('trigger-event-click'))
     fireEvent.click(screen.getByTestId('modal-close'))
     expect(screen.queryByTestId('calendar-event-modal')).not.toBeInTheDocument()

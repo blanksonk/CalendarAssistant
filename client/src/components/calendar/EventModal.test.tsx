@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { EventModal } from './EventModal'
 import { PendingEvent, usePendingEventsStore } from '../../store/pendingEventsStore'
 
@@ -47,12 +47,12 @@ describe('EventModal', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('Save & Confirm removes event from store and calls onClose', () => {
+  it('Save & Confirm removes event from store and calls onClose', async () => {
     const onClose = vi.fn()
     const onConfirm = vi.fn()
     render(<EventModal event={mockEvent} onClose={onClose} onConfirm={onConfirm} />)
     fireEvent.click(screen.getByRole('button', { name: /save.*confirm/i }))
-    expect(usePendingEventsStore.getState().events).toHaveLength(0)
+    await waitFor(() => expect(usePendingEventsStore.getState().events).toHaveLength(0))
     expect(onClose).toHaveBeenCalled()
     expect(onConfirm).toHaveBeenCalled()
   })

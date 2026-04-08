@@ -99,14 +99,14 @@ describe('Pending event flow', () => {
     expect(screen.getByDisplayValue('Design review')).toBeInTheDocument()
   })
 
-  it('confirming event in modal removes it from store', () => {
+  it('confirming event in modal removes it from store', async () => {
     usePendingEventsStore.getState().addEvent(PENDING)
     const onClose = vi.fn()
 
     render(<EventModal event={PENDING} onClose={onClose} />)
     fireEvent.click(screen.getByRole('button', { name: /save.*confirm/i }))
 
-    expect(usePendingEventsStore.getState().events).toHaveLength(0)
+    await waitFor(() => expect(usePendingEventsStore.getState().events).toHaveLength(0))
     expect(onClose).toHaveBeenCalled()
   })
 

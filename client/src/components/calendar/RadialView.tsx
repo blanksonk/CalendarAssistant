@@ -59,7 +59,9 @@ export function RadialView({
     const isDayView =
       (timeRange === 'week' && zoomedDay !== null) ||
       (timeRange !== 'week' && zoomedDay !== null && zoomedDayOfWeek !== null)
-    const SIZE = isDayView ? 700 : 520
+    // Month view also needs extra room for week-range leader lines
+    const isMonthOverview = timeRange !== 'week' && zoomedDay === null
+    const SIZE = isDayView ? 700 : isMonthOverview ? 640 : 560
     svg.attr('viewBox', `0 0 ${SIZE} ${SIZE}`).attr('width', '100%').attr('height', '100%')
     const g = svg.append('g').attr('transform', `translate(${SIZE / 2},${SIZE / 2})`)
 
@@ -166,17 +168,45 @@ function renderMonthRadial(
       .attr('data-testid', `week-segment-${weekIdx}`)
       .on('click', () => onWeekClick?.(weekIdx))
 
+    // Leader line + label for each week
     const midAngle = ((weekIdx + 0.5) / numWeeks) * 2 * Math.PI - Math.PI / 2
-    const labelR = OUTER_R + 20
     const monday = week[0]
+    const sunday = week[week.length - 1]
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const weekLabel = monday && sunday ? `${fmt(monday)} → ${fmt(sunday)}` : fmt(monday)
+
+    const isRight = Math.cos(midAngle) >= 0
+    const elbowLen = 22
+    const x1 = (OUTER_R + 4) * Math.cos(midAngle)
+    const y1 = (OUTER_R + 4) * Math.sin(midAngle)
+    const x2 = (OUTER_R + 36) * Math.cos(midAngle)
+    const y2 = (OUTER_R + 36) * Math.sin(midAngle)
+    const x3 = x2 + (isRight ? elbowLen : -elbowLen)
+
+    // Radial segment
+    g.append('line')
+      .attr('x1', x1).attr('y1', y1)
+      .attr('x2', x2).attr('y2', y2)
+      .attr('stroke', '#cbd5e1').attr('stroke-width', 0.8)
+      .attr('pointer-events', 'none')
+
+    // Horizontal elbow
+    g.append('line')
+      .attr('x1', x2).attr('y1', y2)
+      .attr('x2', x3).attr('y2', y2)
+      .attr('stroke', '#cbd5e1').attr('stroke-width', 0.8)
+      .attr('pointer-events', 'none')
+
+    // Label
     g.append('text')
-      .attr('x', labelR * Math.cos(midAngle))
-      .attr('y', labelR * Math.sin(midAngle))
-      .attr('text-anchor', 'middle')
+      .attr('x', x3 + (isRight ? 3 : -3))
+      .attr('y', y2)
+      .attr('text-anchor', isRight ? 'start' : 'end')
       .attr('dominant-baseline', 'middle')
-      .attr('font-size', '10px')
-      .attr('fill', '#64748b')
-      .text(`${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)
+      .attr('font-size', '8.5px')
+      .attr('fill', '#475569')
+      .attr('pointer-events', 'none')
+      .text(weekLabel)
 
     if (weekEventCount > 0) {
       const badgeR = (INNER_R + OUTER_R) / 2
@@ -254,8 +284,9 @@ function renderFullWeek(
       .text(DAY_NAMES[dayIdx] ?? day.toLocaleDateString('en-US', { weekday: 'short' }))
   })
 
-  // Event arcs — hover tooltip only, no inline labels
+  // Event arcs — hover tooltip only, no inline labels (skip all-day events)
   events.forEach((event) => {
+    if (isAllDay(event)) return
     const start = parseEventDate(event.start)
     const end = parseEventDate(event.end)
     const dayIdx = days.findIndex((d) => d.toDateString() === start.toDateString())
@@ -409,10 +440,11 @@ function renderZoomedDay(
   // Event donut slices
   // D3 arc angles: 0 = top (12am), increases clockwise → (hour/24)*2π (no offset)
   dayEvents.forEach((event) => {
+    if (isAllDay(event)) return
     const start = parseEventDate(event.start)
     const end = parseEventDate(event.end)
     const startHour = start.getHours() + start.getMinutes() / 60
-    const endHour = end.getHours() + end.getMinutes() / 60
+    const endHour = endHourOf(start, end)
     if (endHour <= startHour) return
 
     const d3Start = (startHour / 24) * 2 * Math.PI
@@ -460,13 +492,14 @@ function renderZoomedDay(
 
   // Leader lines + labels rendered AFTER arcs so they sit on top
   dayEvents.forEach((event) => {
+    if (isAllDay(event)) return
     const start = parseEventDate(event.start)
     const end = parseEventDate(event.end)
     const durationMins = (end.getTime() - start.getTime()) / 60000
     if (durationMins < 15) return
 
     const startHour = start.getHours() + start.getMinutes() / 60
-    const endHour = end.getHours() + end.getMinutes() / 60
+    const endHour = endHourOf(start, end)
 
     // Midpoint in D3 angle space, then convert to SVG coords
     const d3Mid = ((startHour + endHour) / 2 / 24) * 2 * Math.PI
@@ -524,7 +557,7 @@ function renderZoomedDay(
       .text(`${fmtTime(start)} – ${fmtTime(end)}`)
   })
 
-  // Center: day name + back link
+  // Center: day name + all-day count + back link
   g.append('text')
     .attr('text-anchor', 'middle')
     .attr('dominant-baseline', 'middle')
@@ -533,9 +566,19 @@ function renderZoomedDay(
     .attr('fill', '#334155')
     .text(DAY_NAMES[dayIdx] ?? day.toLocaleDateString('en-US', { weekday: 'short' }))
 
+  const allDayCount = dayEvents.filter(isAllDay).length
+  if (allDayCount > 0) {
+    g.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('y', 14)
+      .attr('font-size', '8px')
+      .attr('fill', '#3b82f6')
+      .text(`+ ${allDayCount} all-day`)
+  }
+
   g.append('text')
     .attr('text-anchor', 'middle')
-    .attr('y', 18)
+    .attr('y', allDayCount > 0 ? 28 : 18)
     .attr('font-size', '9px')
     .attr('fill', '#94a3b8')
     .attr('cursor', 'pointer')
@@ -554,7 +597,7 @@ function buildEventArc(dayIdx: number, numDays: number, start: Date, end: Date):
   const daySpan = dayEndAngle - dayStartAngle
 
   const startHourFrac = (start.getHours() + start.getMinutes() / 60) / 24
-  const endHourFrac = (end.getHours() + end.getMinutes() / 60) / 24
+  const endHourFrac = endHourOf(start, end) / 24
 
   const r1 = INNER_R + startHourFrac * (OUTER_R - INNER_R)
   const r2 = INNER_R + endHourFrac * (OUTER_R - INNER_R)
@@ -577,6 +620,21 @@ function tailwindColorToHex(cls: string, isBorder: boolean): string {
   if (cls.includes('orange')) return isBorder ? '#fb923c' : '#ffedd5'
   if (cls.includes('red')) return isBorder ? '#f87171' : '#fee2e2'
   return isBorder ? '#2dd4bf' : '#ccfbf1'
+}
+
+/** Returns end-of-event hour (0–24), clamping midnight-crossing events to 24. */
+function endHourOf(start: Date, end: Date): number {
+  const h = end.getHours() + end.getMinutes() / 60
+  // Crosses midnight when end is on a later date OR ends exactly at 00:00 after a non-midnight start
+  if (end.getDate() !== start.getDate() || (h === 0 && (start.getHours() + start.getMinutes()) > 0)) {
+    return 24
+  }
+  return h
+}
+
+/** True when event has no specific time (Google all-day event with only a date string). */
+function isAllDay(event: CalendarEvent): boolean {
+  return !event.start.dateTime
 }
 
 function fmtTime(d: Date): string {

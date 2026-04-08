@@ -9,6 +9,7 @@ import type { ProposedEvent } from './EventProposalCard'
 import { DraftCard } from './DraftCard'
 import type { DraftData } from './DraftCard'
 import { usePendingEventsStore } from '../../store/pendingEventsStore'
+import { useSettingsStore } from '../../store/settingsStore'
 
 type SpecialCard =
   | { type: 'propose_event'; data: ProposedEvent }
@@ -24,9 +25,13 @@ interface ChatPanelProps {
   initialInput?: string
   /** Called after initialInput has been consumed */
   onInputConsumed?: () => void
+  /** Set to the confirmed event title to inject a confirmation message into chat */
+  confirmedEventTitle?: string | null
+  /** Called after the confirmation message has been injected */
+  onConfirmedEventConsumed?: () => void
 }
 
-export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed }: ChatPanelProps) {
+export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirmedEventTitle, onConfirmedEventConsumed }: ChatPanelProps) {
   const { user } = useAuth()
   const [messages, setMessages] = useState<ExtendedMessage[]>([])
   const [input, setInput] = useState('')
@@ -43,6 +48,20 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed }: ChatPa
       onInputConsumed?.()
     }
   }, [initialInput])
+
+  // Inject a confirmation message when a pending event is saved to the calendar
+  useEffect(() => {
+    if (!confirmedEventTitle) return
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `confirmed-${Date.now()}`,
+        role: 'assistant',
+        content: `✓ **${confirmedEventTitle}** has been added to your calendar.`,
+      },
+    ])
+    onConfirmedEventConsumed?.()
+  }, [confirmedEventTitle])
 
   // Proactive greeting on mount
   useEffect(() => {
@@ -107,7 +126,13 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed }: ChatPa
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ message: text, chat_session_id: chatSessionId }),
+        body: JSON.stringify({
+          message: text,
+          chat_session_id: chatSessionId,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          work_start_hour: useSettingsStore.getState().workStartHour,
+          work_end_hour: useSettingsStore.getState().workEndHour,
+        }),
       })
 
       // Surface HTTP errors (auth, rate limit, server errors)

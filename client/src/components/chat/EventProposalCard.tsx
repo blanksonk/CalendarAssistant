@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { usePendingEventsStore } from '../../store/pendingEventsStore'
 
 export interface ProposedEvent {
@@ -42,10 +43,19 @@ function durationLabel(start: string, end: string): string {
   }
 }
 
+type CardStatus = 'idle' | 'added' | 'saved'
+
 export function EventProposalCard({ event, onRevise }: EventProposalCardProps) {
   const addEvent = usePendingEventsStore((s) => s.addEvent)
+  const isPending = usePendingEventsStore((s) => s.events.some((e) => e.id === event.id))
+  const [status, setStatus] = useState<CardStatus>('idle')
 
-  const handleConfirm = () => {
+  // Transition added → saved when the event leaves the pending store (confirmed via modal)
+  useEffect(() => {
+    if (status === 'added' && !isPending) setStatus('saved')
+  }, [isPending, status])
+
+  const handleAddToCalendar = () => {
     addEvent({
       id: event.id,
       title: event.title,
@@ -54,6 +64,7 @@ export function EventProposalCard({ event, onRevise }: EventProposalCardProps) {
       attendees: event.attendees,
       description: event.description,
     })
+    setStatus('added')
   }
 
   const handleRevise = () => {
@@ -91,22 +102,38 @@ export function EventProposalCard({ event, onRevise }: EventProposalCardProps) {
         <p className="text-xs text-gray-500 line-clamp-2">{event.description}</p>
       )}
 
-      <div className="flex gap-2 mt-1">
-        <button
-          onClick={handleConfirm}
-          aria-label="Confirm event"
-          className="flex-1 text-xs py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium"
-        >
-          Add to calendar
-        </button>
-        <button
-          onClick={handleRevise}
-          aria-label="Revise event"
-          className="flex-1 text-xs py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
-        >
-          Ask to revise
-        </button>
-      </div>
+      {status === 'saved' ? (
+        <div className="flex items-center gap-1.5 mt-1 text-xs text-green-700 font-medium">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Saved to calendar
+        </div>
+      ) : status === 'added' ? (
+        <div className="flex items-center gap-1.5 mt-1 text-xs text-blue-600 font-medium">
+          <svg className="w-3.5 h-3.5 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5" />
+          </svg>
+          On calendar — click to review &amp; confirm
+        </div>
+      ) : (
+        <div className="flex gap-2 mt-1">
+          <button
+            onClick={handleAddToCalendar}
+            aria-label="Confirm event"
+            className="flex-1 text-xs py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium"
+          >
+            Add to calendar
+          </button>
+          <button
+            onClick={handleRevise}
+            aria-label="Revise event"
+            className="flex-1 text-xs py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+          >
+            Ask to revise
+          </button>
+        </div>
+      )}
     </div>
   )
 }

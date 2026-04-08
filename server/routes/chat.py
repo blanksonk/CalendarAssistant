@@ -25,6 +25,9 @@ _MAX_RECENT_MESSAGES = 20
 class ChatRequest(BaseModel):
     message: str
     chat_session_id: str | None = None
+    timezone: str | None = None       # IANA timezone string from the browser
+    work_start_hour: int | None = None  # user's configured work day start (0–23)
+    work_end_hour: int | None = None    # user's configured work day end (0–23)
 
 
 def _build_creds(token: OAuthToken):
@@ -131,7 +134,13 @@ async def chat(
 
     async def _stream():
         import json as _json
-        async for chunk in claude_service.run_agent(history, creds=creds):
+        async for chunk in claude_service.run_agent(
+            history,
+            creds=creds,
+            timezone=body.timezone,
+            work_start_hour=body.work_start_hour,
+            work_end_hour=body.work_end_hour,
+        ):
             yield chunk
             # Collect text deltas for persistence
             try:

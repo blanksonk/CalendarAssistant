@@ -12,6 +12,7 @@ export function useCalendar(timeRange: TimeRange, referenceDate: Date) {
     queryKey: ['calendar', 'events', start.toISOString(), end.toISOString()],
     queryFn: () => fetchEvents(start, end),
     staleTime: 2 * 60 * 1000,
+    refetchInterval: 30 * 1000,  // background sync every 30 s
   })
 
   return { events, isLoading, start, end }

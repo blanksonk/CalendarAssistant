@@ -28,10 +28,14 @@ export function WeekGrid({
     [monday.toDateString()]
   )
 
-  // Map events to their day column (0=Mon … 4=Fri)
+  // Partition events: timed vs all-day (no dateTime field)
+  const timedEvents = useMemo(() => events.filter((e) => !!e.start.dateTime), [events])
+  const allDayEvents = useMemo(() => events.filter((e) => !e.start.dateTime), [events])
+
+  // Map timed events to their day column (0=Mon … 6=Sun)
   const eventsByDay = useMemo(() => {
     const map: Map<number, CalendarEvent[]> = new Map(days.map((_, i) => [i, []]))
-    for (const event of events) {
+    for (const event of timedEvents) {
       const start = parseEventDate(event.start)
       const dayIdx = days.findIndex(
         (d) => d.toDateString() === start.toDateString()
@@ -39,7 +43,20 @@ export function WeekGrid({
       if (dayIdx >= 0) map.get(dayIdx)!.push(event)
     }
     return map
-  }, [events, days])
+  }, [timedEvents, days])
+
+  // Map all-day events by day (may span multiple days — place on each day they cover)
+  const allDayByDay = useMemo(() => {
+    const map: Map<number, CalendarEvent[]> = new Map(days.map((_, i) => [i, []]))
+    for (const event of allDayEvents) {
+      const start = parseEventDate(event.start)
+      const end = parseEventDate(event.end)
+      days.forEach((day, i) => {
+        if (day >= start && day < end) map.get(i)!.push(event)
+      })
+    }
+    return map
+  }, [allDayEvents, days])
 
   const pendingByDay = useMemo(() => {
     const map: Map<number, PendingEvent[]> = new Map(days.map((_, i) => [i, []]))
@@ -68,10 +85,33 @@ export function WeekGrid({
         ))}
       </div>
 
+      {/* All-day event banner row — only shown when there are all-day events */}
+      {allDayEvents.length > 0 && (
+        <div className="flex border-b border-gray-100 shrink-0">
+          <div className="w-12 shrink-0 flex items-center justify-end pr-2">
+            <span className="text-[9px] text-gray-400 leading-tight">all day</span>
+          </div>
+          {days.map((_, i) => (
+            <div key={i} className="flex-1 border-l border-gray-100 py-0.5 px-0.5 flex flex-col gap-0.5 min-h-[24px]">
+              {allDayByDay.get(i)?.map((event) => (
+                <div
+                  key={event.id}
+                  data-testid={`allday-chip-${event.id}`}
+                  className="text-[10px] font-medium rounded px-1 py-0.5 truncate bg-blue-100 text-blue-700"
+                  title={event.summary}
+                >
+                  {event.summary}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Scrollable time grid */}
       <div className="flex-1 overflow-y-auto relative">
         <div className="flex">
-          {/* Time gutter */}
+          {/* Time gutter — 24 hours + midnight label at bottom */}
           <div className="w-12 shrink-0">
             {HOURS.map((h) => (
               <div key={h} className="h-14 flex items-start justify-end pr-2 pt-0.5">
@@ -80,15 +120,19 @@ export function WeekGrid({
                 </span>
               </div>
             ))}
+            {/* Phantom midnight label at the very bottom */}
+            <div className="h-8 flex items-start justify-end pr-2 pt-0.5">
+              <span className="text-[10px] text-gray-400">12am</span>
+            </div>
           </div>
 
           {/* Day columns */}
-          {days.map((day, dayIdx) => (
+          {days.map((_day, dayIdx) => (
             <div
               key={dayIdx}
               data-testid={`day-column-${dayIdx}`}
               className="flex-1 border-l border-gray-100 relative"
-              style={{ minHeight: `${HOURS.length * 56}px` }}
+              style={{ minHeight: `${HOURS.length * 56 + 32}px` }}  // +32px bottom padding for midnight
             >
               {/* Hour lines */}
               {HOURS.map((h) => (
