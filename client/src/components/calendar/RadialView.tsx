@@ -260,14 +260,17 @@ function renderFullWeek(
     .startAngle((d) => (d.dayIdx / numDays) * 2 * Math.PI)
     .endAngle((d) => ((d.dayIdx + 1) / numDays) * 2 * Math.PI)
 
+  const todayStr = new Date().toDateString()
+
   // Day background slices
   days.forEach((day, dayIdx) => {
+    const isToday = day.toDateString() === todayStr
     g.append('path')
       .datum({ dayIdx })
       .attr('d', dayArc)
-      .attr('fill', dayIdx % 2 === 0 ? '#f8fafc' : '#f1f5f9')
-      .attr('stroke', '#e2e8f0')
-      .attr('stroke-width', 1)
+      .attr('fill', isToday ? '#eff6ff' : (dayIdx % 2 === 0 ? '#f8fafc' : '#f1f5f9'))
+      .attr('stroke', isToday ? '#93c5fd' : '#e2e8f0')
+      .attr('stroke-width', isToday ? 1.5 : 1)
       .attr('cursor', 'pointer')
       .attr('data-testid', `day-segment-${dayIdx}`)
       .on('click', () => onDayClick?.(dayIdx))
@@ -279,8 +282,9 @@ function renderFullWeek(
       .attr('y', labelR * Math.sin(midAngle))
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
-      .attr('font-size', '11px')
-      .attr('fill', '#64748b')
+      .attr('font-size', isToday ? '12px' : '11px')
+      .attr('font-weight', isToday ? '700' : 'normal')
+      .attr('fill', isToday ? '#2563eb' : '#64748b')
       .text(DAY_NAMES[dayIdx] ?? day.toLocaleDateString('en-US', { weekday: 'short' }))
   })
 
@@ -557,20 +561,27 @@ function renderZoomedDay(
       .text(`${fmtTime(start)} – ${fmtTime(end)}`)
   })
 
-  // Center: day name + all-day count + back link
+  // Center: day name + date + all-day count + back link
   g.append('text')
     .attr('text-anchor', 'middle')
-    .attr('dominant-baseline', 'middle')
+    .attr('y', -10)
     .attr('font-size', '12px')
-    .attr('font-weight', '600')
+    .attr('font-weight', '700')
     .attr('fill', '#334155')
     .text(DAY_NAMES[dayIdx] ?? day.toLocaleDateString('en-US', { weekday: 'short' }))
+
+  g.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('y', 6)
+    .attr('font-size', '10px')
+    .attr('fill', '#64748b')
+    .text(day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
 
   const allDayCount = dayEvents.filter(isAllDay).length
   if (allDayCount > 0) {
     g.append('text')
       .attr('text-anchor', 'middle')
-      .attr('y', 14)
+      .attr('y', 20)
       .attr('font-size', '8px')
       .attr('fill', '#3b82f6')
       .text(`+ ${allDayCount} all-day`)
@@ -578,7 +589,7 @@ function renderZoomedDay(
 
   g.append('text')
     .attr('text-anchor', 'middle')
-    .attr('y', allDayCount > 0 ? 28 : 18)
+    .attr('y', allDayCount > 0 ? 34 : 22)
     .attr('font-size', '9px')
     .attr('fill', '#94a3b8')
     .attr('cursor', 'pointer')

@@ -11,9 +11,11 @@ import { RadialView, buildMonthWeeks } from './RadialView'
 interface CalendarViewProps {
   onEventClick?: (event: CalendarEvent) => void
   onPendingClick?: (event: PendingEvent) => void
+  requestedView?: { view: 'week' | 'day' | 'month'; date?: string | null } | null
+  onRequestedViewConsumed?: () => void
 }
 
-export function CalendarView({ onEventClick, onPendingClick }: CalendarViewProps) {
+export function CalendarView({ onEventClick, onPendingClick, requestedView, onRequestedViewConsumed }: CalendarViewProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('week')
   const [displayMode, setDisplayMode] = useState<DisplayMode>('radial')
   const [referenceDate, setReferenceDate] = useState(new Date())
@@ -35,6 +37,34 @@ export function CalendarView({ onEventClick, onPendingClick }: CalendarViewProps
 
   // Reset day-of-week zoom when the zoomed week changes
   useEffect(() => { setZoomedDayOfWeek(null) }, [zoomedDay])
+
+  // Handle switch_radial_view tool calls from the chat agent
+  useEffect(() => {
+    if (!requestedView) return
+    const targetDate = requestedView.date ? new Date(requestedView.date + 'T12:00:00') : new Date()
+    setDisplayMode('radial')
+    setReferenceDate(targetDate)
+    if (requestedView.view === 'month') {
+      setZoomedDay(null)
+      setZoomedDayOfWeek(null)
+    } else if (requestedView.view === 'week') {
+      const weeks = buildMonthWeeks(targetDate)
+      const weekIdx = weeks.findIndex((week) =>
+        week.some((d) => d.toDateString() === targetDate.toDateString())
+      )
+      setZoomedDay(weekIdx >= 0 ? weekIdx : null)
+      setZoomedDayOfWeek(null)
+    } else if (requestedView.view === 'day') {
+      const weeks = buildMonthWeeks(targetDate)
+      let foundWeek = -1, foundDay = -1
+      for (let wi = 0; wi < weeks.length; wi++) {
+        const di = weeks[wi].findIndex((d) => d.toDateString() === targetDate.toDateString())
+        if (di >= 0) { foundWeek = wi; foundDay = di; break }
+      }
+      if (foundWeek >= 0) { setZoomedDay(foundWeek); setZoomedDayOfWeek(foundDay) }
+    }
+    onRequestedViewConsumed?.()
+  }, [requestedView])
 
   // Derive what the StatsBar should display based on current zoom state
   let visibleEvents: CalendarEvent[] = events

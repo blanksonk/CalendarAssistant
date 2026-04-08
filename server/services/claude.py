@@ -16,6 +16,7 @@ from server.mcp.tools.calendar import (
     execute_get_free_slots,
     execute_list_events,
     execute_propose_event,
+    execute_switch_radial_view,
 )
 from server.mcp.tools.gmail import (
     GMAIL_TOOL_SCHEMAS,
@@ -52,7 +53,8 @@ When creating events with specific people, ALWAYS include their email addresses 
 Be concise and actionable. When proposing meetings, confirm the details with the user first unless they've been explicit. When creating email drafts, ask for confirmation before calling the tool.
 Use American English spelling (e.g. "analyze" not "analyse", "organize" not "organise").
 
-When the user asks about scheduling, adding, modifying, or deleting calendar events, call switch_tab with tab="calendar" before responding. When the user asks about meeting patterns, time analysis, or insights, call switch_tab with tab="insights"."""
+When the user asks about scheduling, adding, modifying, or deleting calendar events, call switch_tab with tab="calendar" before responding. When the user asks about meeting patterns, time analysis, or insights, call switch_tab with tab="insights".
+When the user asks to see a specific day or week in the radial view, call switch_radial_view with the appropriate view and date."""
 
 
 def _fmt_hour(h: int) -> str:
@@ -112,6 +114,8 @@ def _dispatch_tool(
         return execute_create_gmail_draft(tool_input, creds)
     elif tool_name == "switch_tab":
         return execute_switch_tab(tool_input)
+    elif tool_name == "switch_radial_view":
+        return execute_switch_radial_view(tool_input)
     elif tool_name == "lookup_contact":
         if creds is None:
             raise ValueError("Credentials required for lookup_contact")

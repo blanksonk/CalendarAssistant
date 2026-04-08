@@ -19,6 +19,7 @@ export function AppShell() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [selectedPendingEvent, setSelectedPendingEvent] = useState<PendingEvent | null>(null)
   const [confirmedEventTitle, setConfirmedEventTitle] = useState<string | null>(null)
+  const [requestedRadialView, setRequestedRadialView] = useState<{ view: 'week' | 'day' | 'month'; date?: string | null } | null>(null)
   const pendingEvents = usePendingEventsStore((s) => s.events)
   const queryClient = useQueryClient()
 
@@ -117,6 +118,8 @@ export function AppShell() {
             <CalendarView
               onEventClick={setSelectedEvent}
               onPendingClick={setSelectedPendingEvent}
+              requestedView={requestedRadialView}
+              onRequestedViewConsumed={() => setRequestedRadialView(null)}
             />
           )}
           {activeTab === 'insights' && (
@@ -132,6 +135,9 @@ export function AppShell() {
             onInputConsumed={() => setChatInput('')}
             confirmedEventTitle={confirmedEventTitle}
             onConfirmedEventConsumed={() => setConfirmedEventTitle(null)}
+            onRadialViewSwitch={(view, date) =>
+              setRequestedRadialView({ view: view as 'week' | 'day' | 'month', date })
+            }
           />
         </div>
       </div>

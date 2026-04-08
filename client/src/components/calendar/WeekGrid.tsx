@@ -74,15 +74,20 @@ export function WeekGrid({
       {/* Day header row */}
       <div className="flex border-b border-gray-100">
         <div className="w-12 shrink-0" /> {/* time gutter */}
-        {days.map((day, i) => (
-          <div
-            key={i}
-            data-testid={`day-header-${i}`}
-            className="flex-1 text-center py-2 text-xs font-medium text-gray-500 border-l border-gray-100"
-          >
-            {day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-          </div>
-        ))}
+        {days.map((day, i) => {
+          const isToday = day.toDateString() === new Date().toDateString()
+          return (
+            <div
+              key={i}
+              data-testid={`day-header-${i}`}
+              className={`flex-1 text-center py-2 text-xs font-medium border-l border-gray-100 ${
+                isToday ? 'text-blue-600 bg-blue-50 font-semibold' : 'text-gray-500'
+              }`}
+            >
+              {day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </div>
+          )
+        })}
       </div>
 
       {/* All-day event banner row — only shown when there are all-day events */}
@@ -127,11 +132,13 @@ export function WeekGrid({
           </div>
 
           {/* Day columns */}
-          {days.map((_day, dayIdx) => (
+          {days.map((day, dayIdx) => {
+            const isToday = day.toDateString() === new Date().toDateString()
+            return (
             <div
               key={dayIdx}
               data-testid={`day-column-${dayIdx}`}
-              className="flex-1 border-l border-gray-100 relative"
+              className={`flex-1 border-l border-gray-100 relative ${isToday ? 'bg-blue-50/30' : ''}`}
               style={{ minHeight: `${HOURS.length * 56 + 32}px` }}  // +32px bottom padding for midnight
             >
               {/* Hour lines */}
@@ -174,7 +181,7 @@ export function WeekGrid({
                 )
               })}
             </div>
-          ))}
+          )})}
         </div>
       </div>
     </div>

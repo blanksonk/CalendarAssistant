@@ -29,9 +29,11 @@ interface ChatPanelProps {
   confirmedEventTitle?: string | null
   /** Called after the confirmation message has been injected */
   onConfirmedEventConsumed?: () => void
+  /** Called when the agent requests a radial view switch */
+  onRadialViewSwitch?: (view: string, date?: string) => void
 }
 
-export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirmedEventTitle, onConfirmedEventConsumed }: ChatPanelProps) {
+export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirmedEventTitle, onConfirmedEventConsumed, onRadialViewSwitch }: ChatPanelProps) {
   const { user } = useAuth()
   const [messages, setMessages] = useState<ExtendedMessage[]>([])
   const [input, setInput] = useState('')
@@ -73,7 +75,7 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirme
       {
         id: 'greeting',
         role: 'assistant',
-        content: `${greeting}, ${firstName}! I can help you schedule meetings, find free time, draft emails, and analyse your calendar patterns.\n\nWhat can I help you with today?`,
+        content: `${greeting}, ${firstName}! I can help you schedule meetings, find free time, draft emails, and analyze your calendar patterns.\n\nWhat can I help you with today?`,
       },
     ])
   }, [user?.id])
@@ -253,6 +255,10 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirme
 
       case 'switch_tab':
         onTabSwitch?.(event.tab as 'calendar' | 'insights')
+        break
+
+      case 'radial_view':
+        onRadialViewSwitch?.(event.view as string, event.date as string | undefined)
         break
 
       case 'done':

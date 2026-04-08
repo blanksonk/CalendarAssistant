@@ -96,6 +96,34 @@ CALENDAR_TOOL_SCHEMAS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "switch_radial_view",
+        "description": (
+            "Switch the radial calendar view to a specific zoom level. "
+            "Use 'month' to show the full month overview, 'week' to zoom into the week "
+            "containing a given date, or 'day' to zoom into a specific day's clock view. "
+            "Call this proactively when the user asks to see their schedule for a specific day or week."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "view": {
+                    "type": "string",
+                    "enum": ["week", "day", "month"],
+                    "description": "The radial zoom level to switch to.",
+                },
+                "date": {
+                    "type": "string",
+                    "description": (
+                        "ISO date string (e.g. '2026-04-08') for the target date. "
+                        "Required for 'day' view; for 'week' view, determines which week to zoom into. "
+                        "Defaults to today if omitted."
+                    ),
+                },
+            },
+            "required": ["view"],
+        },
+    },
+    {
         "name": "delete_event",
         "description": (
             "Permanently delete a calendar event by its ID. "
@@ -181,6 +209,15 @@ def execute_get_free_slots(tool_input: dict[str, Any], creds: Credentials) -> di
             cursor = overlap[1]
 
     return {"free_slots": slots, "date": date_str, "duration_mins": duration_mins}
+
+
+def execute_switch_radial_view(tool_input: dict[str, Any]) -> dict[str, Any]:
+    """Emit an SSE event that tells the frontend to switch radial zoom level."""
+    return {
+        "_sse_event": "radial_view",
+        "view": tool_input["view"],
+        "date": tool_input.get("date"),
+    }
 
 
 def execute_delete_event(tool_input: dict[str, Any], creds: Credentials) -> dict[str, Any]:
