@@ -44,3 +44,28 @@ export async function createEvent(params: {
   if (!res.ok) throw new Error('Failed to create event')
   return res.json()
 }
+
+export async function updateEvent(
+  eventId: string,
+  params: {
+    title?: string
+    start?: Date
+    end?: Date
+    attendees?: string[]
+    description?: string
+  }
+): Promise<CalendarEvent> {
+  const qs = new URLSearchParams()
+  if (params.title) qs.set('title', params.title)
+  if (params.start) qs.set('start', params.start.toISOString())
+  if (params.end) qs.set('end', params.end.toISOString())
+  if (params.description !== undefined) qs.set('description', params.description)
+  if (params.attendees?.length) params.attendees.forEach((a) => qs.append('attendees', a))
+
+  const res = await fetch(`/api/calendar/events/${eventId}?${qs}`, {
+    method: 'PATCH',
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error('Failed to update event')
+  return res.json()
+}

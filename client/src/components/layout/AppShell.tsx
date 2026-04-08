@@ -3,7 +3,9 @@ import { useAuth } from '../../hooks/useAuth'
 import { CalendarView } from '../calendar/CalendarView'
 import { InsightsPanel } from '../insights/InsightsPanel'
 import { ChatPanel } from '../chat/ChatPanel'
+import { CalendarEventModal } from '../calendar/CalendarEventModal'
 import { usePendingEventsStore } from '../../store/pendingEventsStore'
+import type { CalendarEvent } from '../../api/calendar'
 
 type MainTab = 'calendar' | 'insights'
 
@@ -11,6 +13,7 @@ export function AppShell() {
   const { user, logout } = useAuth()
   const [activeTab, setActiveTab] = useState<MainTab>('calendar')
   const [chatInput, setChatInput] = useState('')
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const pendingEvents = usePendingEventsStore((s) => s.events)
 
   // Warn before leaving with pending events
@@ -86,11 +89,14 @@ export function AppShell() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel — Calendar or Insights */}
         <div className="flex-1 overflow-hidden">
-          {activeTab === 'calendar' && <CalendarView />}
+          {activeTab === 'calendar' && <CalendarView onEventClick={setSelectedEvent} />}
           {activeTab === 'insights' && (
             <InsightsPanel onPromptAgent={handlePromptAgent} />
           )}
         </div>
+
+      {/* Event detail/edit modal */}
+      <CalendarEventModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
 
         {/* Right panel — Chat (always visible) */}
         <div className="w-[380px] shrink-0 border-l border-gray-200 bg-white overflow-hidden">

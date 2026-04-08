@@ -12,7 +12,26 @@ vi.mock('../../store/pendingEventsStore', () => ({
 
 // Stub heavy child components to keep tests focused on AppShell behaviour
 vi.mock('../calendar/CalendarView', () => ({
-  CalendarView: () => <div data-testid="calendar-view" />,
+  CalendarView: ({ onEventClick }: { onEventClick?: (e: any) => void }) => (
+    <div data-testid="calendar-view">
+      <button
+        data-testid="trigger-event-click"
+        onClick={() => onEventClick?.({ id: 'e1', summary: 'Test Event', start: { dateTime: new Date().toISOString() }, end: { dateTime: new Date().toISOString() } })}
+      >
+        Click event
+      </button>
+    </div>
+  ),
+}))
+
+vi.mock('../calendar/CalendarEventModal', () => ({
+  CalendarEventModal: ({ event, onClose }: { event: any; onClose: () => void }) =>
+    event ? (
+      <div data-testid="calendar-event-modal">
+        <span>{event.summary}</span>
+        <button data-testid="modal-close" onClick={onClose}>Close</button>
+      </div>
+    ) : null,
 }))
 
 vi.mock('../insights/InsightsPanel', () => ({
@@ -120,5 +139,19 @@ describe('AppShell', () => {
     fireEvent.click(screen.getByTestId('main-tab-insights'))
     fireEvent.click(screen.getByTestId('prompt-agent-btn'))
     expect(screen.getByTestId('initial-input')).toHaveTextContent('hello')
+  })
+
+  it('opens event modal when an event is clicked in CalendarView', () => {
+    render(<AppShell />)
+    fireEvent.click(screen.getByTestId('trigger-event-click'))
+    expect(screen.getByTestId('calendar-event-modal')).toBeInTheDocument()
+    expect(screen.getByText('Test Event')).toBeInTheDocument()
+  })
+
+  it('closes event modal when modal requests close', () => {
+    render(<AppShell />)
+    fireEvent.click(screen.getByTestId('trigger-event-click'))
+    fireEvent.click(screen.getByTestId('modal-close'))
+    expect(screen.queryByTestId('calendar-event-modal')).not.toBeInTheDocument()
   })
 })
