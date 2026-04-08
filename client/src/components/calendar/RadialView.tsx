@@ -276,16 +276,30 @@ function renderFullWeek(
       .on('click', () => onDayClick?.(dayIdx))
 
     const midAngle = ((dayIdx + 0.5) / numDays) * 2 * Math.PI - Math.PI / 2
-    const labelR = OUTER_R + 18
+    const labelR = OUTER_R + 22
+    const lx = labelR * Math.cos(midAngle)
+    const ly = labelR * Math.sin(midAngle)
+    const dayLabel = DAY_NAMES[dayIdx] ?? day.toLocaleDateString('en-US', { weekday: 'short' })
+    const dateLabel = day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    // Day name line
     g.append('text')
-      .attr('x', labelR * Math.cos(midAngle))
-      .attr('y', labelR * Math.sin(midAngle))
+      .attr('x', lx)
+      .attr('y', ly - 6)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
-      .attr('font-size', isToday ? '12px' : '11px')
-      .attr('font-weight', isToday ? '700' : 'normal')
-      .attr('fill', isToday ? '#2563eb' : '#64748b')
-      .text(DAY_NAMES[dayIdx] ?? day.toLocaleDateString('en-US', { weekday: 'short' }))
+      .attr('font-size', isToday ? '11px' : '10px')
+      .attr('font-weight', isToday ? '700' : '600')
+      .attr('fill', isToday ? '#2563eb' : '#475569')
+      .text(dayLabel)
+    // Date line
+    g.append('text')
+      .attr('x', lx)
+      .attr('y', ly + 7)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .attr('font-size', '9px')
+      .attr('fill', isToday ? '#3b82f6' : '#94a3b8')
+      .text(dateLabel)
   })
 
   // Event arcs — hover tooltip only, no inline labels (skip all-day events)
@@ -345,18 +359,30 @@ function renderFullWeek(
       .attr('repeatCount', 'indefinite')
   })
 
-  // Center label
+  // Center: date range + hint
+  const fmtCenter = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const rangeLabel = days.length > 0
+    ? `${fmtCenter(days[0])} → ${fmtCenter(days[days.length - 1])}`
+    : ''
   g.append('text')
     .attr('text-anchor', 'middle')
-    .attr('dominant-baseline', 'middle')
-    .attr('font-size', '10px')
+    .attr('y', -8)
+    .attr('font-size', '11px')
+    .attr('font-weight', '600')
+    .attr('fill', '#334155')
+    .text(rangeLabel)
+
+  g.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('y', 8)
+    .attr('font-size', '9px')
     .attr('fill', '#94a3b8')
-    .text('click day')
+    .text('click day to zoom')
 
   if (isZoomedWeek) {
     g.append('text')
       .attr('text-anchor', 'middle')
-      .attr('y', 14)
+      .attr('y', 22)
       .attr('font-size', '9px')
       .attr('fill', '#94a3b8')
       .attr('cursor', 'pointer')
