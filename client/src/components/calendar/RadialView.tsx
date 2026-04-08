@@ -219,7 +219,7 @@ function renderFullWeek(
     const colors = eventColorClass(event)
     const fill = tailwindColorToHex(colors.bg, false)
 
-    g.append('path')
+    const arcPath = g.append('path')
       .attr('d', arc as string)
       .attr('fill', fill)
       .attr('fill-opacity', 0.85)
@@ -232,7 +232,10 @@ function renderFullWeek(
         onEventClick?.(event)
       })
 
-    // Label at the centroid of the arc
+    // Native browser tooltip on hover
+    arcPath.append('title').text(event.summary)
+
+    // Visible label at arc centroid for events long enough to fit text
     const durationMins = (parseEventDate(event.end).getTime() - start.getTime()) / 60000
     if (durationMins >= 30) {
       const dayStartAngle = (dayIdx / numDays) * 2 * Math.PI - Math.PI / 2
@@ -241,14 +244,14 @@ function renderFullWeek(
       const startHourFrac = (start.getHours() + start.getMinutes() / 60) / TOTAL_HOURS
       const endHourFrac = (parseEventDate(event.end).getHours() + parseEventDate(event.end).getMinutes() / 60) / TOTAL_HOURS
       const midR = INNER_R + ((startHourFrac + endHourFrac) / 2) * (OUTER_R - INNER_R)
-      const label = event.summary.length > 10 ? event.summary.slice(0, 9) + '…' : event.summary
+      const label = event.summary.length > 12 ? event.summary.slice(0, 11) + '…' : event.summary
       g.append('text')
         .attr('x', midR * Math.cos(midAngle))
         .attr('y', midR * Math.sin(midAngle))
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'middle')
-        .attr('font-size', '8px')
-        .attr('font-weight', '500')
+        .attr('font-size', '9px')
+        .attr('font-weight', '600')
         .attr('fill', '#1e3a5f')
         .attr('pointer-events', 'none')
         .attr('data-testid', `radial-event-label-${event.id}`)
@@ -392,6 +395,7 @@ function renderZoomedDay(
       .attr('cursor', 'pointer')
       .attr('data-testid', `zoomed-event-${event.id}`)
       .on('click', () => onEventClick?.(event))
+      .append('title').text(event.summary)
   })
 
   dayPending.forEach((pending) => {

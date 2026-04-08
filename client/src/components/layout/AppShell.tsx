@@ -95,9 +95,6 @@ export function AppShell() {
           )}
         </div>
 
-      {/* Event detail/edit modal */}
-      <CalendarEventModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
-
         {/* Right panel — Chat (always visible) */}
         <div className="w-[380px] shrink-0 border-l border-gray-200 bg-white overflow-hidden">
           <ChatPanel
@@ -107,6 +104,9 @@ export function AppShell() {
           />
         </div>
       </div>
+
+      {/* Event detail/edit modal — must be outside overflow-hidden containers */}
+      <CalendarEventModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </div>
   )
 }
