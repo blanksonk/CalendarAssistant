@@ -27,14 +27,26 @@ MAX_TOOL_ROUNDS = 5  # prevent infinite loops
 
 ALL_TOOL_SCHEMAS = CALENDAR_TOOL_SCHEMAS + GMAIL_TOOL_SCHEMAS
 
-SYSTEM_PROMPT = """You are a helpful calendar assistant. You can:
+_SYSTEM_PROMPT_TEMPLATE = """You are a helpful calendar assistant. Today's date is {today} ({weekday}).
+
+You can:
 - View the user's calendar events and find free time slots
 - Propose new meetings (they appear as ghost events for the user to confirm)
 - Create Gmail drafts for follow-up emails
 - Show insights about their meeting patterns
 - Switch between the calendar and insights tab
 
-Always be concise and actionable. When proposing meetings, confirm the details with the user first unless they've been explicit. When creating email drafts, ask for confirmation before calling the tool."""
+Always use today's date above to interpret relative terms like "tomorrow", "next week", "this Friday", etc.
+Be concise and actionable. When proposing meetings, confirm the details with the user first unless they've been explicit. When creating email drafts, ask for confirmation before calling the tool."""
+
+
+def _build_system_prompt() -> str:
+    from datetime import date
+    today = date.today()
+    return _SYSTEM_PROMPT_TEMPLATE.format(
+        today=today.strftime("%Y-%m-%d"),
+        weekday=today.strftime("%A"),
+    )
 
 
 def _sse(event_type: str, data: dict[str, Any]) -> str:
@@ -71,7 +83,7 @@ def _dispatch_tool(
 async def run_agent(
     messages: list[dict[str, Any]],
     creds: Credentials | None = None,
-    system: str = SYSTEM_PROMPT,
+    system: str | None = None,
 ) -> AsyncIterator[str]:
     """
     Run the Claude agent loop and yield SSE-formatted strings.
@@ -87,6 +99,7 @@ async def run_agent(
       error       — unrecoverable error (message field)
     """
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    system = system or _build_system_prompt()
     current_messages = list(messages)
 
     for _round in range(MAX_TOOL_ROUNDS):
