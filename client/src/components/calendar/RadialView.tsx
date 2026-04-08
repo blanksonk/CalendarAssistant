@@ -55,7 +55,11 @@ export function RadialView({
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
 
-    const SIZE = 520
+    // Day view needs a larger canvas so leader-line labels have room
+    const isDayView =
+      (timeRange === 'week' && zoomedDay !== null) ||
+      (timeRange !== 'week' && zoomedDay !== null && zoomedDayOfWeek !== null)
+    const SIZE = isDayView ? 700 : 520
     svg.attr('viewBox', `0 0 ${SIZE} ${SIZE}`).attr('width', '100%').attr('height', '100%')
     const g = svg.append('g').attr('transform', `translate(${SIZE / 2},${SIZE / 2})`)
 
@@ -327,7 +331,14 @@ function renderFullWeek(
 }
 
 // ---------------------------------------------------------------------------
-// Zoomed day: clock face — hours go around the circle, events are donut slices
+// Zoomed day: clock face — 12am at top, hours go clockwise as angles.
+// Events are donut slices; labels rendered outside via leader lines.
+//
+// Angle conventions:
+//   D3 arc: startAngle=0 → top (12 o'clock), increases clockwise.
+//           Formula: (hour / 24) * 2π
+//   SVG coords (Math.cos/sin): 0 → right (3 o'clock), -π/2 → top.
+//           Formula: (hour / 24) * 2π  - π/2
 // ---------------------------------------------------------------------------
 
 function renderZoomedDay(
@@ -347,7 +358,7 @@ function renderZoomedDay(
     (p) => p.start.toDateString() === day.toDateString()
   )
 
-  // Outer background — clicking anywhere zooms back
+  // Outer background circle — clicking zooms back
   g.append('circle')
     .attr('r', OUTER_R)
     .attr('fill', '#f8fafc')
@@ -363,32 +374,28 @@ function renderZoomedDay(
     .attr('stroke', '#e2e8f0')
     .attr('stroke-width', 1)
 
-  // Hour marks and labels around the clock face (24-hour)
+  // Hour marks and labels (SVG angle = D3 angle - π/2 so 0h=top)
   for (let h = 0; h < 24; h++) {
-    const angle = (h / 24) * 2 * Math.PI - Math.PI / 2
+    const svgAngle = (h / 24) * 2 * Math.PI - Math.PI / 2  // for Math.cos/sin coords
     const isMajor = h % 6 === 0
     const isMinor = h % 3 === 0
 
-    // Spoke lines at 3-hour and 6-hour intervals
     if (isMinor) {
       const lineStart = isMajor ? INNER_R : OUTER_R - 10
       g.append('line')
-        .attr('x1', lineStart * Math.cos(angle))
-        .attr('y1', lineStart * Math.sin(angle))
-        .attr('x2', OUTER_R * Math.cos(angle))
-        .attr('y2', OUTER_R * Math.sin(angle))
+        .attr('x1', lineStart * Math.cos(svgAngle))
+        .attr('y1', lineStart * Math.sin(svgAngle))
+        .attr('x2', OUTER_R * Math.cos(svgAngle))
+        .attr('y2', OUTER_R * Math.sin(svgAngle))
         .attr('stroke', isMajor ? '#cbd5e1' : '#e2e8f0')
         .attr('stroke-width', isMajor ? 1 : 0.5)
         .attr('pointer-events', 'none')
-    }
 
-    // Labels at 3-hour intervals, positioned just outside the outer ring
-    if (isMinor) {
       const labelR = OUTER_R + 16
       const label = h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`
       g.append('text')
-        .attr('x', labelR * Math.cos(angle))
-        .attr('y', labelR * Math.sin(angle))
+        .attr('x', labelR * Math.cos(svgAngle))
+        .attr('y', labelR * Math.sin(svgAngle))
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'middle')
         .attr('font-size', '8px')
@@ -399,25 +406,25 @@ function renderZoomedDay(
     }
   }
 
-  // Event donut slices — hours as angles (clock face)
+  // Event donut slices
+  // D3 arc angles: 0 = top (12am), increases clockwise → (hour/24)*2π (no offset)
   dayEvents.forEach((event) => {
     const start = parseEventDate(event.start)
     const end = parseEventDate(event.end)
     const startHour = start.getHours() + start.getMinutes() / 60
     const endHour = end.getHours() + end.getMinutes() / 60
-
     if (endHour <= startHour) return
 
-    const startAngle = (startHour / 24) * 2 * Math.PI - Math.PI / 2
-    const endAngle = (endHour / 24) * 2 * Math.PI - Math.PI / 2
+    const d3Start = (startHour / 24) * 2 * Math.PI
+    const d3End = (endHour / 24) * 2 * Math.PI
     const colors = eventColorClass(event)
 
     g.append('path')
       .attr('d', d3.arc()({
         innerRadius: INNER_R + 2,
         outerRadius: OUTER_R - 2,
-        startAngle,
-        endAngle,
+        startAngle: d3Start,
+        endAngle: d3End,
       }) as string)
       .attr('fill', tailwindColorToHex(colors.bg, false))
       .attr('fill-opacity', 0.85)
@@ -427,25 +434,6 @@ function renderZoomedDay(
       .attr('data-testid', `zoomed-event-${event.id}`)
       .on('click', () => onEventClick?.(event))
       .append('title').text(event.summary)
-
-    // Label at arc centroid for events >= 30 min
-    const durationMins = (end.getTime() - start.getTime()) / 60000
-    if (durationMins >= 30) {
-      const midAngle = (startAngle + endAngle) / 2
-      const midR = (INNER_R + OUTER_R) / 2
-      const label = event.summary.length > 14 ? event.summary.slice(0, 13) + '…' : event.summary
-      g.append('text')
-        .attr('x', midR * Math.cos(midAngle))
-        .attr('y', midR * Math.sin(midAngle))
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .attr('font-size', '8px')
-        .attr('font-weight', '600')
-        .attr('fill', '#1e3a5f')
-        .attr('pointer-events', 'none')
-        .attr('data-testid', `radial-event-label-${event.id}`)
-        .text(label)
-    }
   })
 
   // Pending event slices
@@ -454,15 +442,12 @@ function renderZoomedDay(
     const endHour = pending.end.getHours() + pending.end.getMinutes() / 60
     if (endHour <= startHour) return
 
-    const startAngle = (startHour / 24) * 2 * Math.PI - Math.PI / 2
-    const endAngle = (endHour / 24) * 2 * Math.PI - Math.PI / 2
-
     g.append('path')
       .attr('d', d3.arc()({
         innerRadius: INNER_R + 2,
         outerRadius: OUTER_R - 2,
-        startAngle,
-        endAngle,
+        startAngle: (startHour / 24) * 2 * Math.PI,
+        endAngle: (endHour / 24) * 2 * Math.PI,
       }) as string)
       .attr('fill', '#3b82f6')
       .attr('fill-opacity', 0.3)
@@ -471,6 +456,72 @@ function renderZoomedDay(
       .attr('cursor', 'pointer')
       .attr('data-testid', `zoomed-ghost-${pending.id}`)
       .on('click', () => onPendingClick?.(pending))
+  })
+
+  // Leader lines + labels rendered AFTER arcs so they sit on top
+  dayEvents.forEach((event) => {
+    const start = parseEventDate(event.start)
+    const end = parseEventDate(event.end)
+    const durationMins = (end.getTime() - start.getTime()) / 60000
+    if (durationMins < 15) return
+
+    const startHour = start.getHours() + start.getMinutes() / 60
+    const endHour = end.getHours() + end.getMinutes() / 60
+
+    // Midpoint in D3 angle space, then convert to SVG coords
+    const d3Mid = ((startHour + endHour) / 2 / 24) * 2 * Math.PI
+    const svgMid = d3Mid - Math.PI / 2  // shift so 0h=top
+
+    const lineEndR = OUTER_R + 30
+    const isRight = Math.cos(svgMid) >= 0
+    const elbowLen = 28
+
+    const x1 = (OUTER_R - 2) * Math.cos(svgMid)
+    const y1 = (OUTER_R - 2) * Math.sin(svgMid)
+    const x2 = lineEndR * Math.cos(svgMid)
+    const y2 = lineEndR * Math.sin(svgMid)
+    const x3 = x2 + (isRight ? elbowLen : -elbowLen)
+    const y3 = y2
+
+    // Radial segment
+    g.append('line')
+      .attr('x1', x1).attr('y1', y1)
+      .attr('x2', x2).attr('y2', y2)
+      .attr('stroke', '#cbd5e1')
+      .attr('stroke-width', 0.8)
+      .attr('pointer-events', 'none')
+
+    // Horizontal elbow
+    g.append('line')
+      .attr('x1', x2).attr('y1', y2)
+      .attr('x2', x3).attr('y2', y3)
+      .attr('stroke', '#cbd5e1')
+      .attr('stroke-width', 0.8)
+      .attr('pointer-events', 'none')
+
+    // Event name
+    g.append('text')
+      .attr('x', x3 + (isRight ? 3 : -3))
+      .attr('y', y3 - 3)
+      .attr('text-anchor', isRight ? 'start' : 'end')
+      .attr('dominant-baseline', 'auto')
+      .attr('font-size', '9px')
+      .attr('font-weight', '600')
+      .attr('fill', '#334155')
+      .attr('pointer-events', 'none')
+      .attr('data-testid', `radial-event-label-${event.id}`)
+      .text(event.summary)
+
+    // Time range subtitle
+    g.append('text')
+      .attr('x', x3 + (isRight ? 3 : -3))
+      .attr('y', y3 + 9)
+      .attr('text-anchor', isRight ? 'start' : 'end')
+      .attr('dominant-baseline', 'auto')
+      .attr('font-size', '7.5px')
+      .attr('fill', '#94a3b8')
+      .attr('pointer-events', 'none')
+      .text(`${fmtTime(start)} – ${fmtTime(end)}`)
   })
 
   // Center: day name + back link
