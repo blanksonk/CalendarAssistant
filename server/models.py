@@ -99,8 +99,10 @@ class ChatSession(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    # vector(512) applied via migration; stored as Text in ORM layer
-    summary_embedding: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # summary_embedding (vector(512)) is omitted from the ORM model because
+    # SQLAlchemy would cast None to ::VARCHAR which conflicts with the pgvector
+    # column type. The column is written directly via raw SQL by the embeddings
+    # service only — never by the ORM.
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -130,8 +132,7 @@ class ChatMessage(Base):
     )
     role: Mapped[str] = mapped_column(Text, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    # vector(512) applied via migration
-    embedding: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # embedding (vector(512)) omitted from ORM — same reason as summary_embedding above
     archived_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
