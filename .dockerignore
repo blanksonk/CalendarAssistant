@@ -1,0 +1,9 @@
+server/.venv
+node_modules
+client/node_modules
+client/dist
+client/playwright-report
+client/test-results
+**/__pycache__
+**/*.pyc
+.git
