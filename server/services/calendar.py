@@ -105,3 +105,41 @@ def insert_event(
         event_body["description"] = description
 
     return service.events().insert(calendarId="primary", body=event_body).execute()
+
+
+def patch_event(
+    creds: Credentials,
+    event_id: str,
+    title: Optional[str] = None,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    attendees: Optional[list[str]] = None,
+    description: Optional[str] = None,
+) -> dict[str, Any]:
+    """Partially update a calendar event. Only provided fields are changed."""
+    _refresh_if_needed(creds)
+    service = calendar_client(creds)
+
+    body: dict[str, Any] = {}
+    if title is not None:
+        body["summary"] = title
+    if start is not None:
+        body["start"] = {
+            "dateTime": start.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "timeZone": "UTC",
+        }
+    if end is not None:
+        body["end"] = {
+            "dateTime": end.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "timeZone": "UTC",
+        }
+    if attendees is not None:
+        body["attendees"] = [{"email": a} for a in attendees]
+    if description is not None:
+        body["description"] = description
+
+    return (
+        service.events()
+        .patch(calendarId="primary", eventId=event_id, body=body)
+        .execute()
+    )

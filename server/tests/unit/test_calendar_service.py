@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from server.services.calendar import get_free_slots, insert_event, list_events
+from server.services.calendar import get_free_slots, insert_event, list_events, patch_event
 
 
 def _creds(expired: bool = False) -> MagicMock:
@@ -156,3 +156,57 @@ class TestInsertEvent:
         body = call_kwargs["body"]
         assert "attendees" not in body
         assert "description" not in body
+
+
+class TestPatchEvent:
+    @patch("server.services.calendar.calendar_client")
+    def test_patches_only_provided_fields(self, mock_client):
+        mock_service = MagicMock()
+        mock_client.return_value = mock_service
+        updated = {"id": "evt1", "summary": "Renamed"}
+        mock_service.events().patch().execute.return_value = updated
+
+        result = patch_event(_creds(), event_id="evt1", title="Renamed")
+
+        call_kwargs = mock_service.events().patch.call_args.kwargs
+        assert call_kwargs["eventId"] == "evt1"
+        assert call_kwargs["calendarId"] == "primary"
+        body = call_kwargs["body"]
+        assert body["summary"] == "Renamed"
+        assert "start" not in body
+        assert "end" not in body
+        assert result["summary"] == "Renamed"
+
+    @patch("server.services.calendar.calendar_client")
+    def test_patches_all_fields(self, mock_client):
+        mock_service = MagicMock()
+        mock_client.return_value = mock_service
+        mock_service.events().patch().execute.return_value = {"id": "evt1"}
+
+        patch_event(
+            _creds(),
+            event_id="evt1",
+            title="Updated",
+            start=_dt(10),
+            end=_dt(11),
+            attendees=["bob@example.com"],
+            description="New description",
+        )
+
+        body = mock_service.events().patch.call_args.kwargs["body"]
+        assert body["summary"] == "Updated"
+        assert "dateTime" in body["start"]
+        assert "dateTime" in body["end"]
+        assert body["attendees"] == [{"email": "bob@example.com"}]
+        assert body["description"] == "New description"
+
+    @patch("server.services.calendar.calendar_client")
+    def test_empty_patch_sends_empty_body(self, mock_client):
+        mock_service = MagicMock()
+        mock_client.return_value = mock_service
+        mock_service.events().patch().execute.return_value = {"id": "evt1"}
+
+        patch_event(_creds(), event_id="evt1")
+
+        body = mock_service.events().patch.call_args.kwargs["body"]
+        assert body == {}

@@ -1,8 +1,8 @@
-"""Calendar API routes — events listing and event creation."""
+"""Calendar API routes — events listing, creation, and patching."""
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Path
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,6 +79,31 @@ async def create_event(
     creds = _build_creds(token)
     event = cal_service.insert_event(
         creds,
+        title=title,
+        start=start,
+        end=end,
+        attendees=attendees,
+        description=description,
+    )
+    return event
+
+
+@router.patch("/events/{event_id}")
+async def patch_event(
+    event_id: str = Path(..., description="Google Calendar event ID"),
+    title: Optional[str] = None,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    attendees: Optional[List[str]] = None,
+    description: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    token: OAuthToken = Depends(get_oauth_token),
+):
+    """Partially update an existing calendar event."""
+    creds = _build_creds(token)
+    event = cal_service.patch_event(
+        creds,
+        event_id=event_id,
         title=title,
         start=start,
         end=end,

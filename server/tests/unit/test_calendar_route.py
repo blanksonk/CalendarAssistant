@@ -121,3 +121,55 @@ class TestCreateEventRoute:
             assert resp.json()["id"] == "new-evt"
         finally:
             app.dependency_overrides.clear()
+
+
+class TestPatchEventRoute:
+    def _setup(self, mock_patch):
+        from server.main import app
+        from server.middleware.auth import get_current_user, get_oauth_token
+        from server.database import get_db
+
+        user = _make_user()
+        token = _make_token(user.id)
+        mock_patch.return_value = {"id": "evt1", "summary": "Renamed"}
+
+        app.dependency_overrides[get_current_user] = lambda: user
+        app.dependency_overrides[get_oauth_token] = lambda: token
+        app.dependency_overrides[get_db] = lambda: AsyncMock()
+        return app, user, token
+
+    @patch("server.routes.calendar.cal_service.patch_event")
+    def test_patches_event_and_returns_updated(self, mock_patch):
+        app, _, _ = self._setup(mock_patch)
+        try:
+            client = TestClient(app)
+            resp = client.patch(
+                "/api/calendar/events/evt1",
+                params={"title": "Renamed"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["summary"] == "Renamed"
+            mock_patch.assert_called_once()
+            assert mock_patch.call_args.kwargs["event_id"] == "evt1"
+            assert mock_patch.call_args.kwargs["title"] == "Renamed"
+        finally:
+            app.dependency_overrides.clear()
+
+    @patch("server.routes.calendar.cal_service.patch_event")
+    def test_passes_only_provided_params(self, mock_patch):
+        app, _, _ = self._setup(mock_patch)
+        try:
+            client = TestClient(app)
+            client.patch("/api/calendar/events/evt1", params={"description": "New desc"})
+            kwargs = mock_patch.call_args.kwargs
+            assert kwargs["description"] == "New desc"
+            assert kwargs["title"] is None
+            assert kwargs["start"] is None
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_unauthenticated_returns_401(self):
+        from server.main import app
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.patch("/api/calendar/events/evt1", params={"title": "x"})
+        assert resp.status_code == 401
