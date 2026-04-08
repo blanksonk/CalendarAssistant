@@ -43,10 +43,18 @@ describe('CalendarView', () => {
     vi.mocked(usePendingEventsStore).mockReturnValue([])
   })
 
-  it('renders time range toggle (Week / Month)', () => {
+  it('renders time range toggle (Week / Month) in calendar display mode', () => {
     renderView()
+    // Time toggle is hidden in radial mode — switch to calendar first
+    fireEvent.click(screen.getByTestId('display-toggle-calendar'))
     expect(screen.getByTestId('time-toggle-week')).toBeInTheDocument()
     expect(screen.getByTestId('time-toggle-month')).toBeInTheDocument()
+  })
+
+  it('hides time range toggle in radial mode', () => {
+    renderView()
+    expect(screen.queryByTestId('time-toggle-week')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('time-toggle-month')).not.toBeInTheDocument()
   })
 
   it('renders display mode toggle (Calendar / Radial)', () => {
@@ -63,7 +71,7 @@ describe('CalendarView', () => {
   it('switches to calendar grid when Calendar toggle is clicked', () => {
     renderView()
     fireEvent.click(screen.getByTestId('display-toggle-calendar'))
-    // Week + Calendar = WeekGrid
+    // timeRange stays 'week' (radial mode doesn't change user's preference)
     expect(screen.getByTestId('week-grid')).toBeInTheDocument()
     expect(screen.queryByTestId('radial-view')).not.toBeInTheDocument()
   })

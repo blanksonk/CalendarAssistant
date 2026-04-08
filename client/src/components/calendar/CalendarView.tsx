@@ -18,29 +18,51 @@ export function CalendarView({ onEventClick, onPendingClick }: CalendarViewProps
   const [displayMode, setDisplayMode] = useState<DisplayMode>('radial')
   const [referenceDate, setReferenceDate] = useState(new Date())
   const [zoomedDay, setZoomedDay] = useState<number | null>(null)
+  // Day within a zoomed week (month-radial only: month → week → day)
+  const [zoomedDayOfWeek, setZoomedDayOfWeek] = useState<number | null>(null)
   const pendingEvents = usePendingEventsStore((s) => s.events)
 
-  const { events } = useCalendar(timeRange, referenceDate)
+  // Radial always uses month range for full month→week→day drill-through
+  // without changing the user's timeRange preference for calendar views
+  const effectiveTimeRange: TimeRange = displayMode === 'radial' ? 'month' : timeRange
+  const { events } = useCalendar(effectiveTimeRange, referenceDate)
 
   // Reset zoom whenever the user navigates or changes view mode
-  useEffect(() => { setZoomedDay(null) }, [timeRange, referenceDate, displayMode])
+  useEffect(() => {
+    setZoomedDay(null)
+    setZoomedDayOfWeek(null)
+  }, [effectiveTimeRange, referenceDate, displayMode])
+
+  // Reset day-of-week zoom when the zoomed week changes
+  useEffect(() => { setZoomedDayOfWeek(null) }, [zoomedDay])
 
   // Derive what the StatsBar should display based on current zoom state
   let visibleEvents: CalendarEvent[] = events
-  let visibleLabel: string = buildRangeLabel(timeRange, referenceDate)
-  let workdays: number = timeRange === 'week' ? 5 : 20
+  let visibleLabel: string = buildRangeLabel(effectiveTimeRange, referenceDate)
+  let workdays: number = effectiveTimeRange === 'week' ? 5 : 20
 
   if (displayMode === 'radial' && zoomedDay !== null) {
-    if (timeRange === 'week') {
-      // Zoomed into a single day
+    if (effectiveTimeRange === 'week') {
+      // Week radial: zoomed into a single day
       const day = addDays(startOfWeek(referenceDate), zoomedDay)
       visibleEvents = events.filter(
         (e) => parseEventDate(e.start).toDateString() === day.toDateString()
       )
       visibleLabel = day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
       workdays = 1
+    } else if (zoomedDayOfWeek !== null) {
+      // Month radial: zoomed into a specific day within a week
+      const weeks = buildMonthWeeks(referenceDate)
+      const day = (weeks[zoomedDay] ?? [])[zoomedDayOfWeek]
+      if (day) {
+        visibleEvents = events.filter(
+          (e) => parseEventDate(e.start).toDateString() === day.toDateString()
+        )
+        visibleLabel = day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        workdays = 1
+      }
     } else {
-      // Zoomed into a week within the month
+      // Month radial: zoomed into a week
       const weeks = buildMonthWeeks(referenceDate)
       const weekDays = weeks[zoomedDay] ?? []
       const dateStrings = new Set(weekDays.map((d) => d.toDateString()))
@@ -54,23 +76,27 @@ export function CalendarView({ onEventClick, onPendingClick }: CalendarViewProps
     }
   }
 
-  const handlePrev = () => setReferenceDate(navigate(timeRange, referenceDate, -1))
-  const handleNext = () => setReferenceDate(navigate(timeRange, referenceDate, 1))
+  const handlePrev = () => setReferenceDate(navigate(effectiveTimeRange, referenceDate, -1))
+  const handleNext = () => setReferenceDate(navigate(effectiveTimeRange, referenceDate, 1))
 
   return (
     <div data-testid="calendar-view" className="flex flex-col h-full overflow-hidden">
-      {/* Toolbar: two independent toggles */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2 bg-white border-b border-gray-100 shrink-0">
-        {/* Time range toggle */}
-        <TogglePill
-          options={[
-            { value: 'week', label: 'Week' },
-            { value: 'month', label: 'Month' },
-          ]}
-          value={timeRange}
-          onChange={(v) => setTimeRange(v as TimeRange)}
-          testPrefix="time"
-        />
+        {/* Time range toggle — hidden in radial mode (radial navigates month→week→day internally) */}
+        {displayMode !== 'radial' ? (
+          <TogglePill
+            options={[
+              { value: 'week', label: 'Week' },
+              { value: 'month', label: 'Month' },
+            ]}
+            value={timeRange}
+            onChange={(v) => setTimeRange(v as TimeRange)}
+            testPrefix="time"
+          />
+        ) : (
+          <div /> /* spacer to keep display toggle right-aligned */
+        )}
 
         {/* Display mode toggle */}
         <TogglePill
@@ -98,11 +124,13 @@ export function CalendarView({ onEventClick, onPendingClick }: CalendarViewProps
         {displayMode === 'radial' ? (
           <RadialView
             referenceDate={referenceDate}
-            timeRange={timeRange}
+            timeRange={effectiveTimeRange}
             events={events}
             pendingEvents={pendingEvents}
             zoomedDay={zoomedDay}
             onZoomDay={setZoomedDay}
+            zoomedDayOfWeek={zoomedDayOfWeek}
+            onZoomDayOfWeek={setZoomedDayOfWeek}
             onEventClick={onEventClick}
             onPendingClick={onPendingClick}
           />

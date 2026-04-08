@@ -66,10 +66,24 @@ describe('RadialView', () => {
     expect(ghost.getAttribute('stroke-dasharray')).toBeTruthy()
   })
 
-  it('renders event label for events >= 30 minutes', () => {
+  it('renders event label for events >= 30 minutes in zoomed day view', () => {
+    const event = makeEvent(0, 10) // 1-hour event on Monday (dayIdx 0)
+    render(
+      <RadialView
+        referenceDate={MONDAY}
+        events={[event]}
+        pendingEvents={[]}
+        zoomedDay={0}
+        onZoomDay={() => {}}
+      />
+    )
+    expect(screen.getByTestId(`radial-event-label-${event.id}`)).toBeInTheDocument()
+  })
+
+  it('does not render event labels in the week (unzoomed) view', () => {
     const event = makeEvent(0, 10) // 1-hour event on Monday
     render(<RadialView referenceDate={MONDAY} events={[event]} pendingEvents={[]} />)
-    expect(screen.getByTestId(`radial-event-label-${event.id}`)).toBeInTheDocument()
+    expect(screen.queryByTestId(`radial-event-label-${event.id}`)).not.toBeInTheDocument()
   })
 
   it('renders hour labels in zoomed day view', () => {

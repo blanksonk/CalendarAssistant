@@ -1,10 +1,18 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { CalendarEvent } from '../../api/calendar'
 import type { PendingEvent } from '../../store/pendingEventsStore'
 import type { TimeRange } from '../../hooks/useCalendar'
 import { addDays, parseEventDate, startOfWeek } from '../../utils/dates'
 import { eventColorClass } from '../../utils/eventColors'
+
+interface TooltipState {
+  event: CalendarEvent
+  x: number
+  y: number
+}
+
+type SetTooltip = (t: TooltipState | null) => void
 
 interface RadialViewProps {
   referenceDate: Date
@@ -13,14 +21,15 @@ interface RadialViewProps {
   pendingEvents: PendingEvent[]
   zoomedDay?: number | null
   onZoomDay?: (day: number | null) => void
+  zoomedDayOfWeek?: number | null
+  onZoomDayOfWeek?: (day: number | null) => void
   onEventClick?: (event: CalendarEvent) => void
   onPendingClick?: (event: PendingEvent) => void
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const TOTAL_HOURS = 24
-const INNER_R = 60 // center circle radius
-const OUTER_R = 230 // outer edge
+const INNER_R = 60
+const OUTER_R = 230
 
 export function RadialView({
   referenceDate,
@@ -29,15 +38,16 @@ export function RadialView({
   pendingEvents,
   zoomedDay = null,
   onZoomDay = () => {},
+  zoomedDayOfWeek = null,
+  onZoomDayOfWeek = () => {},
   onEventClick,
   onPendingClick,
 }: RadialViewProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null)
 
   const monday = startOfWeek(referenceDate)
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
-
-  // Month mode: build list of weeks in the month
   const monthWeeks = buildMonthWeeks(referenceDate)
 
   useEffect(() => {
@@ -46,33 +56,68 @@ export function RadialView({
     svg.selectAll('*').remove()
 
     const SIZE = 520
-    const cx = SIZE / 2
-    const cy = SIZE / 2
     svg.attr('viewBox', `0 0 ${SIZE} ${SIZE}`).attr('width', '100%').attr('height', '100%')
-    const g = svg.append('g').attr('transform', `translate(${cx},${cy})`)
+    const g = svg.append('g').attr('transform', `translate(${SIZE / 2},${SIZE / 2})`)
 
     if (timeRange === 'week') {
       if (zoomedDay === null) {
-        renderFullWeek(g, weekDays, events, pendingEvents, onEventClick, onPendingClick, onZoomDay)
+        renderFullWeek(
+          g, weekDays, events, pendingEvents,
+          onEventClick, onPendingClick,
+          (idx) => onZoomDay(idx), undefined, setTooltip
+        )
       } else {
-        renderZoomedDay(g, weekDays[zoomedDay], zoomedDay, events, pendingEvents, onEventClick, onPendingClick, () => onZoomDay(null))
+        renderZoomedDay(
+          g, weekDays[zoomedDay], zoomedDay, events, pendingEvents,
+          onEventClick, onPendingClick, () => onZoomDay(null)
+        )
       }
     } else {
+      // Month mode: 3-level drill (month → week → day)
       if (zoomedDay === null) {
-        renderMonthRadial(g, monthWeeks, referenceDate, events, pendingEvents, onEventClick, onPendingClick, onZoomDay)
-      } else {
-        // Zoomed into a week — show that week's days as a full-week radial
+        renderMonthRadial(
+          g, monthWeeks, referenceDate, events, pendingEvents,
+          onEventClick, onPendingClick, onZoomDay
+        )
+      } else if (zoomedDayOfWeek === null) {
+        // Zoomed into a week — show 7-day radial
         const weekDaysZoomed = monthWeeks[zoomedDay]
-        renderFullWeek(g, weekDaysZoomed, events, pendingEvents, onEventClick, onPendingClick, (idx) => {
-          if (idx === -1) onZoomDay(null)
-        }, true)
+        renderFullWeek(
+          g, weekDaysZoomed, events, pendingEvents,
+          onEventClick, onPendingClick,
+          (idx) => onZoomDayOfWeek(idx), () => onZoomDay(null), setTooltip, true
+        )
+      } else {
+        // Zoomed into a specific day within a month-week
+        const day = monthWeeks[zoomedDay][zoomedDayOfWeek]
+        renderZoomedDay(
+          g, day, zoomedDayOfWeek, events, pendingEvents,
+          onEventClick, onPendingClick, () => onZoomDayOfWeek(null)
+        )
       }
     }
-  }, [referenceDate, timeRange, events, pendingEvents, zoomedDay])
+  }, [referenceDate, timeRange, events, pendingEvents, zoomedDay, zoomedDayOfWeek])
 
   return (
-    <div data-testid="radial-view" className="flex items-center justify-center h-full w-full">
+    <div
+      data-testid="radial-view"
+      className="flex items-center justify-center h-full w-full"
+      onMouseLeave={() => setTooltip(null)}
+    >
       <svg ref={svgRef} data-testid="radial-svg" />
+
+      {/* Hover tooltip for week/month arc events */}
+      {tooltip && (
+        <div
+          className="fixed z-50 pointer-events-none bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs"
+          style={{ left: tooltip.x + 14, top: tooltip.y - 40 }}
+        >
+          <div className="font-semibold text-gray-800 max-w-[180px] truncate">
+            {tooltip.event.summary}
+          </div>
+          <div className="text-gray-400 mt-0.5">{formatEventTime(tooltip.event)}</div>
+        </div>
+      )}
     </div>
   )
 }
@@ -86,9 +131,9 @@ function renderMonthRadial(
   weeks: Date[][],
   referenceDate: Date,
   events: CalendarEvent[],
-  pendingEvents: PendingEvent[],
-  onEventClick?: (e: CalendarEvent) => void,
-  onPendingClick?: (e: PendingEvent) => void,
+  _pendingEvents: PendingEvent[],
+  _onEventClick?: (e: CalendarEvent) => void,
+  _onPendingClick?: (e: PendingEvent) => void,
   onWeekClick?: (weekIdx: number) => void,
 ) {
   const numWeeks = weeks.length
@@ -100,12 +145,11 @@ function renderMonthRadial(
     .endAngle((d) => ((d.weekIdx + 1) / numWeeks) * 2 * Math.PI - Math.PI / 2)
 
   weeks.forEach((week, weekIdx) => {
-    // Count events in this week
     const weekEventCount = events.filter((e) =>
       week.some((d) => d.toDateString() === parseEventDate(e.start).toDateString())
     ).length
 
-    const intensity = Math.min(weekEventCount / 6, 1) // normalize 0–6 events
+    const intensity = Math.min(weekEventCount / 6, 1)
     const fill = d3.interpolateBlues(0.1 + intensity * 0.5)
 
     g.append('path')
@@ -118,7 +162,6 @@ function renderMonthRadial(
       .attr('data-testid', `week-segment-${weekIdx}`)
       .on('click', () => onWeekClick?.(weekIdx))
 
-    // Week label
     const midAngle = ((weekIdx + 0.5) / numWeeks) * 2 * Math.PI - Math.PI / 2
     const labelR = OUTER_R + 20
     const monday = week[0]
@@ -129,9 +172,8 @@ function renderMonthRadial(
       .attr('dominant-baseline', 'middle')
       .attr('font-size', '10px')
       .attr('fill', '#64748b')
-      .text(`Apr ${monday.getDate()}`)
+      .text(`${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)
 
-    // Event count badge inside segment
     if (weekEventCount > 0) {
       const badgeR = (INNER_R + OUTER_R) / 2
       g.append('text')
@@ -146,7 +188,6 @@ function renderMonthRadial(
     }
   })
 
-  // Center label
   g.append('text')
     .attr('text-anchor', 'middle')
     .attr('dominant-baseline', 'middle')
@@ -163,7 +204,7 @@ function renderMonthRadial(
 }
 
 // ---------------------------------------------------------------------------
-// Full week: 5 pie slices (day segments), each with hour rings
+// Full week: day segments as pie slices. No text labels on arcs — use tooltip.
 // ---------------------------------------------------------------------------
 
 function renderFullWeek(
@@ -174,6 +215,8 @@ function renderFullWeek(
   onEventClick?: (e: CalendarEvent) => void,
   onPendingClick?: (e: PendingEvent) => void,
   onDayClick?: (dayIdx: number) => void,
+  onBack?: () => void,
+  setTooltip?: SetTooltip,
   isZoomedWeek = false,
 ) {
   const numDays = days.length
@@ -195,7 +238,6 @@ function renderFullWeek(
       .attr('data-testid', `day-segment-${dayIdx}`)
       .on('click', () => onDayClick?.(dayIdx))
 
-    // Day label
     const midAngle = ((dayIdx + 0.5) / numDays) * 2 * Math.PI - Math.PI / 2
     const labelR = OUTER_R + 18
     g.append('text')
@@ -205,10 +247,10 @@ function renderFullWeek(
       .attr('dominant-baseline', 'middle')
       .attr('font-size', '11px')
       .attr('fill', '#64748b')
-      .text(DAY_NAMES[dayIdx])
+      .text(DAY_NAMES[dayIdx] ?? day.toLocaleDateString('en-US', { weekday: 'short' }))
   })
 
-  // Event arcs
+  // Event arcs — hover tooltip only, no inline labels
   events.forEach((event) => {
     const start = parseEventDate(event.start)
     const end = parseEventDate(event.end)
@@ -219,7 +261,7 @@ function renderFullWeek(
     const colors = eventColorClass(event)
     const fill = tailwindColorToHex(colors.bg, false)
 
-    const arcPath = g.append('path')
+    g.append('path')
       .attr('d', arc as string)
       .attr('fill', fill)
       .attr('fill-opacity', 0.85)
@@ -227,36 +269,13 @@ function renderFullWeek(
       .attr('stroke-width', 1.5)
       .attr('cursor', 'pointer')
       .attr('data-testid', `radial-event-${event.id}`)
+      .on('mouseover', (e: MouseEvent) => setTooltip?.({ event, x: e.clientX, y: e.clientY }))
+      .on('mousemove', (e: MouseEvent) => setTooltip?.({ event, x: e.clientX, y: e.clientY }))
+      .on('mouseout', () => setTooltip?.(null))
       .on('click', (e: MouseEvent) => {
         e.stopPropagation()
         onEventClick?.(event)
       })
-
-    // Native browser tooltip on hover
-    arcPath.append('title').text(event.summary)
-
-    // Visible label at arc centroid for events long enough to fit text
-    const durationMins = (parseEventDate(event.end).getTime() - start.getTime()) / 60000
-    if (durationMins >= 30) {
-      const dayStartAngle = (dayIdx / numDays) * 2 * Math.PI - Math.PI / 2
-      const dayEndAngle = ((dayIdx + 1) / numDays) * 2 * Math.PI - Math.PI / 2
-      const midAngle = (dayStartAngle + dayEndAngle) / 2
-      const startHourFrac = (start.getHours() + start.getMinutes() / 60) / TOTAL_HOURS
-      const endHourFrac = (parseEventDate(event.end).getHours() + parseEventDate(event.end).getMinutes() / 60) / TOTAL_HOURS
-      const midR = INNER_R + ((startHourFrac + endHourFrac) / 2) * (OUTER_R - INNER_R)
-      const label = event.summary.length > 12 ? event.summary.slice(0, 11) + '…' : event.summary
-      g.append('text')
-        .attr('x', midR * Math.cos(midAngle))
-        .attr('y', midR * Math.sin(midAngle))
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .attr('font-size', '9px')
-        .attr('font-weight', '600')
-        .attr('fill', '#1e3a5f')
-        .attr('pointer-events', 'none')
-        .attr('data-testid', `radial-event-label-${event.id}`)
-        .text(label)
-    }
   })
 
   // Pending event arcs (pulsing, semi-transparent)
@@ -280,7 +299,6 @@ function renderFullWeek(
         onPendingClick?.(pending)
       })
 
-    // Pulse animation
     path.append('animate')
       .attr('attributeName', 'fill-opacity')
       .attr('values', '0.3;0.6;0.3')
@@ -294,7 +312,7 @@ function renderFullWeek(
     .attr('dominant-baseline', 'middle')
     .attr('font-size', '10px')
     .attr('fill', '#94a3b8')
-    .text(isZoomedWeek ? 'click day' : 'click day')
+    .text('click day')
 
   if (isZoomedWeek) {
     g.append('text')
@@ -304,12 +322,12 @@ function renderFullWeek(
       .attr('fill', '#94a3b8')
       .attr('cursor', 'pointer')
       .text('← back')
-      .on('click', () => onDayClick?.(-1)) // -1 = back signal
+      .on('click', () => onBack?.())
   }
 }
 
 // ---------------------------------------------------------------------------
-// Zoomed day: single day fills full circle, hours as rings
+// Zoomed day: clock face — hours go around the circle, events are donut slices
 // ---------------------------------------------------------------------------
 
 function renderZoomedDay(
@@ -329,65 +347,78 @@ function renderZoomedDay(
     (p) => p.start.toDateString() === day.toDateString()
   )
 
-  // Background ring
+  // Outer background — clicking anywhere zooms back
   g.append('circle')
     .attr('r', OUTER_R)
     .attr('fill', '#f8fafc')
     .attr('stroke', '#e2e8f0')
+    .attr('stroke-width', 1)
     .attr('cursor', 'pointer')
     .on('click', () => onBack?.())
 
-  // Hour rings (only business hours 6-22 rendered for clarity)
-  const HOUR_MIN = 6
-  const HOUR_MAX = 22
-  const HOUR_RANGE = HOUR_MAX - HOUR_MIN
+  // Inner hub
+  g.append('circle')
+    .attr('r', INNER_R)
+    .attr('fill', 'white')
+    .attr('stroke', '#e2e8f0')
+    .attr('stroke-width', 1)
 
-  for (let h = HOUR_MIN; h <= HOUR_MAX; h++) {
-    const r = INNER_R + ((h - HOUR_MIN) / HOUR_RANGE) * (OUTER_R - INNER_R)
-    g.append('circle')
-      .attr('r', r)
-      .attr('fill', 'none')
-      .attr('stroke', h % 6 === 0 ? '#cbd5e1' : '#f1f5f9')
-      .attr('stroke-width', 0.5)
+  // Hour marks and labels around the clock face (24-hour)
+  for (let h = 0; h < 24; h++) {
+    const angle = (h / 24) * 2 * Math.PI - Math.PI / 2
+    const isMajor = h % 6 === 0
+    const isMinor = h % 3 === 0
 
-    // Hour labels at 3-hour intervals, placed at the top of each ring
-    if (h % 3 === 0) {
+    // Spoke lines at 3-hour and 6-hour intervals
+    if (isMinor) {
+      const lineStart = isMajor ? INNER_R : OUTER_R - 10
+      g.append('line')
+        .attr('x1', lineStart * Math.cos(angle))
+        .attr('y1', lineStart * Math.sin(angle))
+        .attr('x2', OUTER_R * Math.cos(angle))
+        .attr('y2', OUTER_R * Math.sin(angle))
+        .attr('stroke', isMajor ? '#cbd5e1' : '#e2e8f0')
+        .attr('stroke-width', isMajor ? 1 : 0.5)
+        .attr('pointer-events', 'none')
+    }
+
+    // Labels at 3-hour intervals, positioned just outside the outer ring
+    if (isMinor) {
+      const labelR = OUTER_R + 16
       const label = h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`
       g.append('text')
-        .attr('x', 0)
-        .attr('y', -r)
+        .attr('x', labelR * Math.cos(angle))
+        .attr('y', labelR * Math.sin(angle))
         .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'auto')
+        .attr('dominant-baseline', 'middle')
         .attr('font-size', '8px')
-        .attr('fill', '#94a3b8')
+        .attr('fill', isMajor ? '#64748b' : '#94a3b8')
         .attr('pointer-events', 'none')
         .attr('data-testid', `hour-label-${h}`)
         .text(label)
     }
   }
 
-  // Event arcs for zoomed day
-  const renderArc = (start: Date, end: Date) => {
-    const startFrac = (start.getHours() + start.getMinutes() / 60 - HOUR_MIN) / HOUR_RANGE
-    const endFrac = (end.getHours() + end.getMinutes() / 60 - HOUR_MIN) / HOUR_RANGE
-    const startAngle = startFrac * 2 * Math.PI - Math.PI / 2
-    const endAngle = endFrac * 2 * Math.PI - Math.PI / 2
-
-    return d3.arc()({
-      innerRadius: INNER_R + 4,
-      outerRadius: OUTER_R - 4,
-      startAngle,
-      endAngle,
-    })
-  }
-
+  // Event donut slices — hours as angles (clock face)
   dayEvents.forEach((event) => {
     const start = parseEventDate(event.start)
     const end = parseEventDate(event.end)
+    const startHour = start.getHours() + start.getMinutes() / 60
+    const endHour = end.getHours() + end.getMinutes() / 60
+
+    if (endHour <= startHour) return
+
+    const startAngle = (startHour / 24) * 2 * Math.PI - Math.PI / 2
+    const endAngle = (endHour / 24) * 2 * Math.PI - Math.PI / 2
     const colors = eventColorClass(event)
 
     g.append('path')
-      .attr('d', renderArc(start, end) as string)
+      .attr('d', d3.arc()({
+        innerRadius: INNER_R + 2,
+        outerRadius: OUTER_R - 2,
+        startAngle,
+        endAngle,
+      }) as string)
       .attr('fill', tailwindColorToHex(colors.bg, false))
       .attr('fill-opacity', 0.85)
       .attr('stroke', tailwindColorToHex(colors.border, true))
@@ -396,11 +427,43 @@ function renderZoomedDay(
       .attr('data-testid', `zoomed-event-${event.id}`)
       .on('click', () => onEventClick?.(event))
       .append('title').text(event.summary)
+
+    // Label at arc centroid for events >= 30 min
+    const durationMins = (end.getTime() - start.getTime()) / 60000
+    if (durationMins >= 30) {
+      const midAngle = (startAngle + endAngle) / 2
+      const midR = (INNER_R + OUTER_R) / 2
+      const label = event.summary.length > 14 ? event.summary.slice(0, 13) + '…' : event.summary
+      g.append('text')
+        .attr('x', midR * Math.cos(midAngle))
+        .attr('y', midR * Math.sin(midAngle))
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', '8px')
+        .attr('font-weight', '600')
+        .attr('fill', '#1e3a5f')
+        .attr('pointer-events', 'none')
+        .attr('data-testid', `radial-event-label-${event.id}`)
+        .text(label)
+    }
   })
 
+  // Pending event slices
   dayPending.forEach((pending) => {
+    const startHour = pending.start.getHours() + pending.start.getMinutes() / 60
+    const endHour = pending.end.getHours() + pending.end.getMinutes() / 60
+    if (endHour <= startHour) return
+
+    const startAngle = (startHour / 24) * 2 * Math.PI - Math.PI / 2
+    const endAngle = (endHour / 24) * 2 * Math.PI - Math.PI / 2
+
     g.append('path')
-      .attr('d', renderArc(pending.start, pending.end) as string)
+      .attr('d', d3.arc()({
+        innerRadius: INNER_R + 2,
+        outerRadius: OUTER_R - 2,
+        startAngle,
+        endAngle,
+      }) as string)
       .attr('fill', '#3b82f6')
       .attr('fill-opacity', 0.3)
       .attr('stroke', '#3b82f6')
@@ -410,14 +473,14 @@ function renderZoomedDay(
       .on('click', () => onPendingClick?.(pending))
   })
 
-  // Day label in center
+  // Center: day name + back link
   g.append('text')
     .attr('text-anchor', 'middle')
     .attr('dominant-baseline', 'middle')
-    .attr('font-size', '13px')
+    .attr('font-size', '12px')
     .attr('font-weight', '600')
     .attr('fill', '#334155')
-    .text(DAY_NAMES[dayIdx])
+    .text(DAY_NAMES[dayIdx] ?? day.toLocaleDateString('en-US', { weekday: 'short' }))
 
   g.append('text')
     .attr('text-anchor', 'middle')
@@ -430,7 +493,7 @@ function renderZoomedDay(
 }
 
 // ---------------------------------------------------------------------------
-// Arc builder for an event within a day slice
+// Arc builder for an event within a day slice (week radial)
 // ---------------------------------------------------------------------------
 
 function buildEventArc(dayIdx: number, numDays: number, start: Date, end: Date): string | null {
@@ -438,8 +501,8 @@ function buildEventArc(dayIdx: number, numDays: number, start: Date, end: Date):
   const dayEndAngle = ((dayIdx + 1) / numDays) * 2 * Math.PI - Math.PI / 2
   const daySpan = dayEndAngle - dayStartAngle
 
-  const startHourFrac = (start.getHours() + start.getMinutes() / 60) / TOTAL_HOURS
-  const endHourFrac = (end.getHours() + end.getMinutes() / 60) / TOTAL_HOURS
+  const startHourFrac = (start.getHours() + start.getMinutes() / 60) / 24
+  const endHourFrac = (end.getHours() + end.getMinutes() / 60) / 24
 
   const r1 = INNER_R + startHourFrac * (OUTER_R - INNER_R)
   const r2 = INNER_R + endHourFrac * (OUTER_R - INNER_R)
@@ -452,13 +515,28 @@ function buildEventArc(dayIdx: number, numDays: number, start: Date, end: Date):
   })
 }
 
-// Very simple Tailwind → hex mapper for D3 fill/stroke
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function tailwindColorToHex(cls: string, isBorder: boolean): string {
   if (cls.includes('blue')) return isBorder ? '#60a5fa' : '#dbeafe'
   if (cls.includes('purple')) return isBorder ? '#a78bfa' : '#ede9fe'
   if (cls.includes('orange')) return isBorder ? '#fb923c' : '#ffedd5'
   if (cls.includes('red')) return isBorder ? '#f87171' : '#fee2e2'
-  return isBorder ? '#2dd4bf' : '#ccfbf1' // teal default
+  return isBorder ? '#2dd4bf' : '#ccfbf1'
+}
+
+function fmtTime(d: Date): string {
+  const h = d.getHours()
+  const m = d.getMinutes()
+  const period = h < 12 ? 'am' : 'pm'
+  const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return m === 0 ? `${displayH}${period}` : `${displayH}:${m.toString().padStart(2, '0')}${period}`
+}
+
+function formatEventTime(event: CalendarEvent): string {
+  return `${fmtTime(parseEventDate(event.start))} – ${fmtTime(parseEventDate(event.end))}`
 }
 
 /** Build weeks (Mon–Sun arrays) covering the reference month */
@@ -466,7 +544,6 @@ export function buildMonthWeeks(date: Date): Date[][] {
   const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1)
   const lastOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0)
 
-  // Find the Monday on or before the 1st
   const startDay = new Date(firstOfMonth)
   const dow = startDay.getDay()
   const diff = dow === 0 ? -6 : 1 - dow
