@@ -145,8 +145,8 @@ function renderMonthRadial(
   const weekArc = d3.arc<{ weekIdx: number }>()
     .innerRadius(INNER_R)
     .outerRadius(OUTER_R)
-    .startAngle((d) => (d.weekIdx / numWeeks) * 2 * Math.PI - Math.PI / 2)
-    .endAngle((d) => ((d.weekIdx + 1) / numWeeks) * 2 * Math.PI - Math.PI / 2)
+    .startAngle((d) => (d.weekIdx / numWeeks) * 2 * Math.PI)
+    .endAngle((d) => ((d.weekIdx + 1) / numWeeks) * 2 * Math.PI)
 
   weeks.forEach((week, weekIdx) => {
     const weekEventCount = events.filter((e) =>
@@ -227,8 +227,8 @@ function renderFullWeek(
   const dayArc = d3.arc<{ dayIdx: number }>()
     .innerRadius(INNER_R)
     .outerRadius(OUTER_R)
-    .startAngle((d) => (d.dayIdx / numDays) * 2 * Math.PI - Math.PI / 2)
-    .endAngle((d) => ((d.dayIdx + 1) / numDays) * 2 * Math.PI - Math.PI / 2)
+    .startAngle((d) => (d.dayIdx / numDays) * 2 * Math.PI)
+    .endAngle((d) => ((d.dayIdx + 1) / numDays) * 2 * Math.PI)
 
   // Day background slices
   days.forEach((day, dayIdx) => {
@@ -548,8 +548,9 @@ function renderZoomedDay(
 // ---------------------------------------------------------------------------
 
 function buildEventArc(dayIdx: number, numDays: number, start: Date, end: Date): string | null {
-  const dayStartAngle = (dayIdx / numDays) * 2 * Math.PI - Math.PI / 2
-  const dayEndAngle = ((dayIdx + 1) / numDays) * 2 * Math.PI - Math.PI / 2
+  // D3 arc angles: 0 = top (12 o'clock), no offset needed (unlike SVG Math.cos/sin)
+  const dayStartAngle = (dayIdx / numDays) * 2 * Math.PI
+  const dayEndAngle = ((dayIdx + 1) / numDays) * 2 * Math.PI
   const daySpan = dayEndAngle - dayStartAngle
 
   const startHourFrac = (start.getHours() + start.getMinutes() / 60) / 24
