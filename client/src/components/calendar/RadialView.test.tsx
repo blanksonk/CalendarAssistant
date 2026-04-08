@@ -65,4 +65,27 @@ describe('RadialView', () => {
     const ghost = screen.getByTestId(`radial-ghost-${pending.id}`)
     expect(ghost.getAttribute('stroke-dasharray')).toBeTruthy()
   })
+
+  it('renders event label for events >= 30 minutes', () => {
+    const event = makeEvent(0, 10) // 1-hour event on Monday
+    render(<RadialView referenceDate={MONDAY} events={[event]} pendingEvents={[]} />)
+    expect(screen.getByTestId(`radial-event-label-${event.id}`)).toBeInTheDocument()
+  })
+
+  it('renders hour labels in zoomed day view', () => {
+    render(
+      <RadialView
+        referenceDate={MONDAY}
+        events={[]}
+        pendingEvents={[]}
+        zoomedDay={0}
+        onZoomDay={() => {}}
+      />
+    )
+    // Labels at 3-hour intervals: 6am, 9am, 12pm, 3pm, 6pm, 9pm
+    expect(screen.getByTestId('hour-label-6')).toBeInTheDocument()
+    expect(screen.getByTestId('hour-label-9')).toBeInTheDocument()
+    expect(screen.getByTestId('hour-label-12')).toBeInTheDocument()
+    expect(screen.getByTestId('hour-label-21')).toBeInTheDocument()
+  })
 })

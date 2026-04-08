@@ -231,6 +231,29 @@ function renderFullWeek(
         e.stopPropagation()
         onEventClick?.(event)
       })
+
+    // Label at the centroid of the arc
+    const durationMins = (parseEventDate(event.end).getTime() - start.getTime()) / 60000
+    if (durationMins >= 30) {
+      const dayStartAngle = (dayIdx / numDays) * 2 * Math.PI - Math.PI / 2
+      const dayEndAngle = ((dayIdx + 1) / numDays) * 2 * Math.PI - Math.PI / 2
+      const midAngle = (dayStartAngle + dayEndAngle) / 2
+      const startHourFrac = (start.getHours() + start.getMinutes() / 60) / TOTAL_HOURS
+      const endHourFrac = (parseEventDate(event.end).getHours() + parseEventDate(event.end).getMinutes() / 60) / TOTAL_HOURS
+      const midR = INNER_R + ((startHourFrac + endHourFrac) / 2) * (OUTER_R - INNER_R)
+      const label = event.summary.length > 10 ? event.summary.slice(0, 9) + '…' : event.summary
+      g.append('text')
+        .attr('x', midR * Math.cos(midAngle))
+        .attr('y', midR * Math.sin(midAngle))
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', '8px')
+        .attr('font-weight', '500')
+        .attr('fill', '#1e3a5f')
+        .attr('pointer-events', 'none')
+        .attr('data-testid', `radial-event-label-${event.id}`)
+        .text(label)
+    }
   })
 
   // Pending event arcs (pulsing, semi-transparent)
@@ -323,6 +346,21 @@ function renderZoomedDay(
       .attr('fill', 'none')
       .attr('stroke', h % 6 === 0 ? '#cbd5e1' : '#f1f5f9')
       .attr('stroke-width', 0.5)
+
+    // Hour labels at 3-hour intervals, placed at the top of each ring
+    if (h % 3 === 0) {
+      const label = h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`
+      g.append('text')
+        .attr('x', 0)
+        .attr('y', -r)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'auto')
+        .attr('font-size', '8px')
+        .attr('fill', '#94a3b8')
+        .attr('pointer-events', 'none')
+        .attr('data-testid', `hour-label-${h}`)
+        .text(label)
+    }
   }
 
   // Event arcs for zoomed day
