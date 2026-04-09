@@ -25,7 +25,6 @@ type DropdownState =
 export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProps) {
   const ref = useRef<HTMLTextAreaElement>(null)
   const [dropdown, setDropdown] = useState<DropdownState>({ type: 'hidden' })
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Auto-resize textarea
@@ -38,7 +37,6 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
 
   const closeMention = useCallback(() => {
     setDropdown({ type: 'hidden' })
-    setMentionQuery(null)
   }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -52,8 +50,6 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
       closeMention()
       return
     }
-
-    setMentionQuery(query)
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
