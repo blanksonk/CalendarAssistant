@@ -211,15 +211,26 @@ function renderMonthRadial(
 
     if (weekEventCount > 0) {
       const badgeR = (INNER_R + OUTER_R) / 2
+      const bx = badgeR * Math.cos(midAngle)
+      const by = badgeR * Math.sin(midAngle)
       g.append('text')
-        .attr('x', badgeR * Math.cos(midAngle))
-        .attr('y', badgeR * Math.sin(midAngle))
+        .attr('x', bx)
+        .attr('y', by - 7)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'middle')
         .attr('font-size', '13px')
         .attr('font-weight', '600')
         .attr('fill', '#1e40af')
         .text(weekEventCount)
+      g.append('text')
+        .attr('x', bx)
+        .attr('y', by + 7)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', '9px')
+        .attr('font-weight', '500')
+        .attr('fill', '#1e40af')
+        .text('meetings')
     }
   })
 
