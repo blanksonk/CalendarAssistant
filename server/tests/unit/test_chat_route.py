@@ -185,7 +185,7 @@ class TestChatRoute:
         from server.database import get_db
         app.dependency_overrides[get_db] = mock_db
 
-        async def fake_agent(messages, creds=None, system=None):
+        async def fake_agent(messages, creds=None, system=None, **kwargs):
             yield 'data: {"type":"text","delta":"Hello"}\n\n'
             yield 'data: {"type":"done"}\n\n'
 

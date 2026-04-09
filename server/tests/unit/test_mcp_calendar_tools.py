@@ -29,9 +29,15 @@ def _creds():
 # ---------------------------------------------------------------------------
 
 class TestSchemas:
-    def test_three_schemas_defined(self):
+    def test_schemas_defined(self):
         names = {s["name"] for s in CALENDAR_TOOL_SCHEMAS}
-        assert names == {"list_events", "get_free_slots", "propose_event"}
+        assert names == {
+            "list_events",
+            "get_free_slots",
+            "propose_event",
+            "delete_event",
+            "switch_radial_view",
+        }
 
     def test_list_events_required_fields(self):
         schema = next(s for s in CALENDAR_TOOL_SCHEMAS if s["name"] == "list_events")

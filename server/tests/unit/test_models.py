@@ -109,9 +109,10 @@ class TestOAuthTokenModel:
 
 class TestChatSessionModel:
     def test_summary_nullable(self):
+        # summary_embedding (vector(512)) is intentionally omitted from the ORM model
+        # and written via raw SQL — only summary is on the model
         cs = ChatSession(user_id=uuid.uuid4())
         assert cs.summary is None
-        assert cs.summary_embedding is None
 
     def test_table_name(self):
         assert ChatSession.__tablename__ == "chat_sessions"
@@ -133,14 +134,16 @@ class TestChatMessageModel:
             )
             assert msg.role == role
 
-    def test_embedding_nullable(self):
+    def test_embedding_omitted_from_orm(self):
+        # embedding (vector(512)) is intentionally omitted from the ORM model
+        # and written via raw SQL — verify the model doesn't expose the attribute
         msg = ChatMessage(
             chat_session_id=uuid.uuid4(),
             user_id=uuid.uuid4(),
             role="user",
             content="hi",
         )
-        assert msg.embedding is None
+        assert not hasattr(msg, "embedding")
 
     def test_archived_at_nullable(self):
         msg = ChatMessage(

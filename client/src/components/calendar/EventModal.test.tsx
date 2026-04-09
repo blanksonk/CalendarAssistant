@@ -28,9 +28,17 @@ describe('EventModal', () => {
     expect(screen.getByDisplayValue('Team sync')).toBeInTheDocument()
   })
 
-  it('shows pre-filled attendees', () => {
+  it('shows pre-filled attendees as chips', () => {
     render(<EventModal event={mockEvent} onClose={vi.fn()} />)
-    expect(screen.getByDisplayValue('alice@example.com')).toBeInTheDocument()
+    // Attendees are rendered as chips (spans), not a text input
+    expect(screen.getByText('alice@example.com')).toBeInTheDocument()
+  })
+
+  it('removes attendee chip on × click', () => {
+    render(<EventModal event={mockEvent} onClose={vi.fn()} />)
+    const removeBtn = screen.getByRole('button', { name: /remove alice/i })
+    fireEvent.mouseDown(removeBtn)
+    expect(screen.queryByText('alice@example.com')).not.toBeInTheDocument()
   })
 
   it('calls onClose when close button clicked', () => {
