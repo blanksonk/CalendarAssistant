@@ -123,6 +123,6 @@ The full granular step list is in `docs/PLANNING.md`. Current status:
 - ✅ Step 8g: StatGrid component + unit tests
 - ✅ Step 8h: TopPeople + TopSeries components + unit tests
 - ✅ Step 8i: InsightsPanel integration + beforeunload warning + AppShell wiring
-- ⬜ Step 9a–9b: AppShell + E2E
+- ✅ Step 9a–9b: AppShell + E2E (Playwright, fully mocked — no Google account needed)
 
 Update the checkboxes above as steps are completed.
