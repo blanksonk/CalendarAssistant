@@ -70,9 +70,14 @@ def _build_system_prompt(
     work_start_hour: int | None = None,
     work_end_hour: int | None = None,
 ) -> str:
-    from datetime import date, timedelta
-    today = date.today()
+    import zoneinfo
+    from datetime import datetime, timedelta
     tz = timezone or "UTC"
+    try:
+        today = datetime.now(zoneinfo.ZoneInfo(tz)).date()
+    except Exception:
+        from datetime import date
+        today = date.today()
     ws = work_start_hour if work_start_hour is not None else 9
     we = work_end_hour if work_end_hour is not None else 18
     upcoming = ", ".join(
