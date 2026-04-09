@@ -11,8 +11,9 @@ export function useCalendar(timeRange: TimeRange, referenceDate: Date) {
   const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ['calendar', 'events', start.toISOString(), end.toISOString()],
     queryFn: () => fetchEvents(start, end),
-    staleTime: 2 * 60 * 1000,
-    refetchInterval: 30 * 1000,  // background sync every 30 s
+    staleTime: 10 * 1000,         // 10s — short so focus refetch always triggers
+    refetchInterval: 30 * 1000,   // background sync every 30s
+    refetchOnWindowFocus: true,   // refresh when user tabs back after editing externally
   })
 
   return { events, isLoading, start, end }

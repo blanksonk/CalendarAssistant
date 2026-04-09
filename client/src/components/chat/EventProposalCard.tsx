@@ -56,14 +56,17 @@ export function EventProposalCard({ event, onRevise }: EventProposalCardProps) {
   }, [isPending, status])
 
   const handleAddToCalendar = () => {
-    addEvent({
-      id: event.id,
-      title: event.title,
-      start: new Date(event.start),
-      end: new Date(event.end),
-      attendees: event.attendees,
-      description: event.description,
-    })
+    // Only add to store if not already a ghost on the calendar
+    if (!isPending) {
+      addEvent({
+        id: event.id,
+        title: event.title,
+        start: new Date(event.start),
+        end: new Date(event.end),
+        attendees: event.attendees,
+        description: event.description,
+      })
+    }
     setStatus('added')
   }
 
@@ -123,7 +126,7 @@ export function EventProposalCard({ event, onRevise }: EventProposalCardProps) {
             aria-label="Confirm event"
             className="flex-1 text-xs py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium"
           >
-            Add to calendar
+            {isPending ? 'Save to calendar' : 'Add to calendar'}
           </button>
           <button
             onClick={handleRevise}

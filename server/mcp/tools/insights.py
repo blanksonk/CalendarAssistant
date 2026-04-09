@@ -131,10 +131,19 @@ async def execute_generate_weekly_focus(
     end_dt = start_dt + timedelta(days=7)
     events = cal_service.list_events(creds, start_dt, end_dt)
 
-    titles_and_descriptions = "\n".join(
-        f"- {ev.get('summary', 'Untitled')}: {ev.get('description', '')[:100]}"
-        for ev in events[:40]
-    )
+    import re
+
+    def _clean_desc(raw: str) -> str:
+        """Strip URLs and whitespace; return empty string if nothing useful remains."""
+        cleaned = re.sub(r'https?://\S+', '', raw or '').strip()
+        return cleaned[:150] if cleaned else ''
+
+    lines = []
+    for ev in events[:40]:
+        title = ev.get('summary', 'Untitled')
+        desc = _clean_desc(ev.get('description', ''))
+        lines.append(f"- {title}" + (f": {desc}" if desc else ""))
+    titles_and_descriptions = "\n".join(lines)
 
     # Generate narrative via Claude
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)

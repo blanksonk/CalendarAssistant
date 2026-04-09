@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useCalendar, type TimeRange, type DisplayMode } from '../../hooks/useCalendar'
 import { usePendingEventsStore, type PendingEvent } from '../../store/pendingEventsStore'
 import type { CalendarEvent } from '../../api/calendar'
@@ -23,6 +23,8 @@ export function CalendarView({ onEventClick, onPendingClick, requestedView, onRe
   // Day within a zoomed week (month-radial only: month → week → day)
   const [zoomedDayOfWeek, setZoomedDayOfWeek] = useState<number | null>(null)
   const pendingEvents = usePendingEventsStore((s) => s.events)
+  // Suppresses zoom-reset effects for one cycle when a requestedView is being applied
+  const skipResetRef = useRef(false)
 
   // Radial always uses month range for full month→week→day drill-through
   // without changing the user's timeRange preference for calendar views
@@ -31,16 +33,23 @@ export function CalendarView({ onEventClick, onPendingClick, requestedView, onRe
 
   // Reset zoom whenever the user navigates or changes view mode
   useEffect(() => {
+    if (skipResetRef.current) return
     setZoomedDay(null)
     setZoomedDayOfWeek(null)
   }, [effectiveTimeRange, referenceDate, displayMode])
 
   // Reset day-of-week zoom when the zoomed week changes
-  useEffect(() => { setZoomedDayOfWeek(null) }, [zoomedDay])
+  useEffect(() => {
+    if (skipResetRef.current) return
+    setZoomedDayOfWeek(null)
+  }, [zoomedDay])
 
   // Handle switch_radial_view tool calls from the chat agent
   useEffect(() => {
     if (!requestedView) return
+    // Suppress the zoom-reset effects triggered by referenceDate/displayMode changes below
+    skipResetRef.current = true
+    setTimeout(() => { skipResetRef.current = false }, 0)
     const targetDate = requestedView.date ? new Date(requestedView.date + 'T12:00:00') : new Date()
     setDisplayMode('radial')
     setReferenceDate(targetDate)
