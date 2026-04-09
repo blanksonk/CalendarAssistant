@@ -71,28 +71,30 @@ Open `http://localhost:5173`, sign in with Google, and start chatting.
 
 ## Running Tests
 
-### Frontend unit tests (Vitest)
+### Frontend — Unit tests (Vitest + React Testing Library)
+
+Component-level tests covering rendering, user interactions, and state changes. Each component has a co-located `.test.tsx` file. Tests mock all API calls — no network requests are made.
 
 ```bash
 cd client && npx vitest
 ```
 
-### Frontend E2E tests (Playwright — no Google account needed)
+### Frontend — E2E tests (Playwright)
 
-All API calls are intercepted with `page.route()` mocks. No real backend or credentials required.
+Full browser tests that exercise the entire UI — auth flow, calendar navigation, tab switching, chat interactions, and the ghost event proposal flow. All `/api/*` calls are intercepted with `page.route()` mocks, so no real backend, database, or Google account is needed.
 
 ```bash
 cd client && npx playwright test
 ```
 
-### Backend tests (pytest)
+### Backend — Unit + integration tests (pytest)
+
+Covers all FastAPI routes, services (calendar, Gmail, Claude agent loop, insights computation, embeddings), and MCP tool handlers. No real database or external API calls are made — the SQLAlchemy async session is mocked with `AsyncMock`, and all Google and Anthropic API responses use fixture data.
 
 ```bash
 source server/.venv/bin/activate
 PYTHONPATH=. pytest server/tests/
 ```
-
-No real database or external API calls are made in tests — all dependencies are mocked via `AsyncMock` and `pytest-mock`.
 
 ---
 
