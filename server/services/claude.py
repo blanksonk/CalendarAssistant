@@ -36,6 +36,7 @@ ALL_TOOL_SCHEMAS = CALENDAR_TOOL_SCHEMAS + GMAIL_TOOL_SCHEMAS + PEOPLE_TOOL_SCHE
 
 _SYSTEM_PROMPT_TEMPLATE = """You are a helpful calendar assistant. Today's date is {today} ({weekday}). The user's timezone is {timezone}.
 The user's work hours are {work_start} to {work_end} local time.
+Upcoming dates for reference: {upcoming_dates}
 
 You can:
 - View the user's calendar events and find free time slots
@@ -69,16 +70,21 @@ def _build_system_prompt(
     work_start_hour: int | None = None,
     work_end_hour: int | None = None,
 ) -> str:
-    from datetime import date
+    from datetime import date, timedelta
     today = date.today()
     tz = timezone or "UTC"
     ws = work_start_hour if work_start_hour is not None else 9
     we = work_end_hour if work_end_hour is not None else 18
+    upcoming = ", ".join(
+        (today + timedelta(days=i)).strftime("%A %Y-%m-%d")
+        for i in range(1, 8)
+    )
     return _SYSTEM_PROMPT_TEMPLATE.format(
         today=today.strftime("%Y-%m-%d"),
         weekday=today.strftime("%A"),
         timezone=tz,
         work_start=_fmt_hour(ws),
+        upcoming_dates=upcoming,
         work_end=_fmt_hour(we),
     )
 

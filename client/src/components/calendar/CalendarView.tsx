@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useCalendar, type TimeRange, type DisplayMode } from '../../hooks/useCalendar'
 import { usePendingEventsStore, type PendingEvent } from '../../store/pendingEventsStore'
 import type { CalendarEvent } from '../../api/calendar'
@@ -23,33 +23,16 @@ export function CalendarView({ onEventClick, onPendingClick, requestedView, onRe
   // Day within a zoomed week (month-radial only: month → week → day)
   const [zoomedDayOfWeek, setZoomedDayOfWeek] = useState<number | null>(null)
   const pendingEvents = usePendingEventsStore((s) => s.events)
-  // Suppresses zoom-reset effects for one cycle when a requestedView is being applied
-  const skipResetRef = useRef(false)
 
   // Radial always uses month range for full month→week→day drill-through
   // without changing the user's timeRange preference for calendar views
   const effectiveTimeRange: TimeRange = displayMode === 'radial' ? 'month' : timeRange
   const { events } = useCalendar(effectiveTimeRange, referenceDate)
 
-  // Reset zoom whenever the user navigates or changes view mode
-  useEffect(() => {
-    if (skipResetRef.current) return
-    setZoomedDay(null)
-    setZoomedDayOfWeek(null)
-  }, [effectiveTimeRange, referenceDate, displayMode])
-
-  // Reset day-of-week zoom when the zoomed week changes
-  useEffect(() => {
-    if (skipResetRef.current) return
-    setZoomedDayOfWeek(null)
-  }, [zoomedDay])
-
-  // Handle switch_radial_view tool calls from the chat agent
+  // Handle switch_radial_view tool calls from the chat agent.
+  // We do NOT use reset effects here — zoom is managed explicitly in each handler.
   useEffect(() => {
     if (!requestedView) return
-    // Suppress the zoom-reset effects triggered by referenceDate/displayMode changes below
-    skipResetRef.current = true
-    setTimeout(() => { skipResetRef.current = false }, 0)
     const targetDate = requestedView.date ? new Date(requestedView.date + 'T12:00:00') : new Date()
     setDisplayMode('radial')
     setReferenceDate(targetDate)
@@ -115,8 +98,14 @@ export function CalendarView({ onEventClick, onPendingClick, requestedView, onRe
     }
   }
 
-  const handlePrev = () => setReferenceDate(navigate(effectiveTimeRange, referenceDate, -1))
-  const handleNext = () => setReferenceDate(navigate(effectiveTimeRange, referenceDate, 1))
+  const handlePrev = () => {
+    setZoomedDay(null); setZoomedDayOfWeek(null)
+    setReferenceDate(navigate(effectiveTimeRange, referenceDate, -1))
+  }
+  const handleNext = () => {
+    setZoomedDay(null); setZoomedDayOfWeek(null)
+    setReferenceDate(navigate(effectiveTimeRange, referenceDate, 1))
+  }
 
   return (
     <div data-testid="calendar-view" className="flex flex-col h-full overflow-hidden">
@@ -130,7 +119,7 @@ export function CalendarView({ onEventClick, onPendingClick, requestedView, onRe
               { value: 'month', label: 'Month' },
             ]}
             value={timeRange}
-            onChange={(v) => setTimeRange(v as TimeRange)}
+            onChange={(v) => { setTimeRange(v as TimeRange); setZoomedDay(null); setZoomedDayOfWeek(null) }}
             testPrefix="time"
           />
         ) : (
@@ -144,7 +133,7 @@ export function CalendarView({ onEventClick, onPendingClick, requestedView, onRe
             { value: 'radial', label: 'Radial' },
           ]}
           value={displayMode}
-          onChange={(v) => setDisplayMode(v as DisplayMode)}
+          onChange={(v) => { setDisplayMode(v as DisplayMode); setZoomedDay(null); setZoomedDayOfWeek(null) }}
           testPrefix="display"
         />
       </div>
@@ -167,7 +156,7 @@ export function CalendarView({ onEventClick, onPendingClick, requestedView, onRe
             events={events}
             pendingEvents={pendingEvents}
             zoomedDay={zoomedDay}
-            onZoomDay={setZoomedDay}
+            onZoomDay={(idx) => { setZoomedDay(idx); setZoomedDayOfWeek(null) }}
             zoomedDayOfWeek={zoomedDayOfWeek}
             onZoomDayOfWeek={setZoomedDayOfWeek}
             onEventClick={onEventClick}
