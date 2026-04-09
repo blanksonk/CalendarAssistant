@@ -25,7 +25,7 @@ export function WeekGrid({
   const monday = startOfWeek(referenceDate)
   const days = useMemo(
     () => Array.from({ length: DAYS }, (_, i) => addDays(monday, i)),
-    [monday.toDateString()]
+    [monday]
   )
 
   // Partition events: timed vs all-day (no dateTime field)

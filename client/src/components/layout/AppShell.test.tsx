@@ -22,7 +22,7 @@ vi.mock('../../store/pendingEventsStore', () => ({
 
 // Stub heavy child components to keep tests focused on AppShell behaviour
 vi.mock('../calendar/CalendarView', () => ({
-  CalendarView: ({ onEventClick }: { onEventClick?: (e: any) => void }) => (
+  CalendarView: ({ onEventClick }: { onEventClick?: (e: { id: string; summary: string; start: { dateTime: string }; end: { dateTime: string } }) => void }) => (
     <div data-testid="calendar-view">
       <button
         data-testid="trigger-event-click"
@@ -35,7 +35,7 @@ vi.mock('../calendar/CalendarView', () => ({
 }))
 
 vi.mock('../calendar/CalendarEventModal', () => ({
-  CalendarEventModal: ({ event, onClose }: { event: any; onClose: () => void }) =>
+  CalendarEventModal: ({ event, onClose }: { event: { summary: string } | null; onClose: () => void }) =>
     event ? (
       <div data-testid="calendar-event-modal">
         <span>{event.summary}</span>
@@ -139,7 +139,7 @@ describe('AppShell', () => {
   it('shows pending events badge when pending events exist', () => {
     vi.mocked(usePendingEventsStore).mockReturnValue([
       { id: 'p1', title: 'Pending', start: new Date(), end: new Date() },
-    ] as any)
+    ] as unknown as ReturnType<typeof usePendingEventsStore>)
     renderAppShell()
     expect(screen.getByText('1 pending')).toBeInTheDocument()
   })

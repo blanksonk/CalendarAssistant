@@ -14,7 +14,7 @@ vi.mock('../../store/pendingEventsStore', () => ({
 import { useCalendar } from '../../hooks/useCalendar'
 import { usePendingEventsStore } from '../../store/pendingEventsStore'
 
-function makeEvent(id: string): any {
+function makeEvent(id: string): { id: string; summary: string; start: { dateTime: string }; end: { dateTime: string } } {
   return {
     id,
     summary: 'Test event',

@@ -19,7 +19,7 @@ export function MonthGrid({
   onEventClick,
   onPendingClick,
 }: MonthGridProps) {
-  const weeks = useMemo(() => buildWeeks(referenceDate), [referenceDate.getMonth()])
+  const weeks = useMemo(() => buildWeeks(referenceDate), [referenceDate])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()

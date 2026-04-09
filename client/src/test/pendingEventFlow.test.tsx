@@ -8,7 +8,7 @@
  *   4. User clicks "Save & Confirm" → event removed from store + modal closes
  */
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { usePendingEventsStore, PendingEvent } from '../store/pendingEventsStore'
 import { GhostEventBlock } from '../components/calendar/GhostEventBlock'
 import { EventModal } from '../components/calendar/EventModal'
@@ -24,33 +24,6 @@ const PENDING: PendingEvent = {
   end: new Date('2026-04-07T16:00:00Z'),
   attendees: ['alice@example.com'],
   description: 'Review Q2 designs',
-}
-
-/**
- * Minimal host component that renders ghost events and the modal,
- * wired to the shared store.
- */
-function TestHost() {
-  const events = usePendingEventsStore((s) => s.events)
-  const [selected, setSelected] = vi.fn().mockImplementation(
-    () => [null as PendingEvent | null, (e: PendingEvent | null) => setSelected.mock.results]
-  )() as never
-
-  // Simple local state for selected event
-  const [modalEvent, setModalEvent] = vi.fn().mockReturnValue([null, vi.fn()])() as never
-
-  return <_TestHost />
-}
-
-// Use a clean approach — no mocked useState tricks
-function _TestHost() {
-  const events = usePendingEventsStore((s) => s.events)
-  const [selected, setSelected] = vi.fn().mockReturnValue([
-    null as PendingEvent | null,
-    (_: PendingEvent | null) => {},
-  ])() as never
-
-  return <></>
 }
 
 /**
@@ -72,7 +45,7 @@ describe('Pending event flow', () => {
     usePendingEventsStore.getState().addEvent(PENDING)
     const events = usePendingEventsStore.getState().events
 
-    const { rerender } = render(
+    render(
       <>
         {events.map((e) => (
           <GhostEventBlock key={e.id} event={e} />

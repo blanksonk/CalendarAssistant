@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { usePendingEventsStore } from '../../store/pendingEventsStore'
 
 export interface ProposedEvent {
@@ -48,12 +48,10 @@ type CardStatus = 'idle' | 'added' | 'saved'
 export function EventProposalCard({ event, onRevise }: EventProposalCardProps) {
   const addEvent = usePendingEventsStore((s) => s.addEvent)
   const isPending = usePendingEventsStore((s) => s.events.some((e) => e.id === event.id))
-  const [status, setStatus] = useState<CardStatus>('idle')
+  const [addedToCalendar, setAddedToCalendar] = useState(false)
 
-  // Transition added → saved when the event leaves the pending store (confirmed via modal)
-  useEffect(() => {
-    if (status === 'added' && !isPending) setStatus('saved')
-  }, [isPending, status])
+  // Derive status from store + local flag (avoids setState-in-effect)
+  const status: CardStatus = addedToCalendar && !isPending ? 'saved' : addedToCalendar ? 'added' : 'idle'
 
   const handleAddToCalendar = () => {
     // Only add to store if not already a ghost on the calendar
@@ -67,7 +65,7 @@ export function EventProposalCard({ event, onRevise }: EventProposalCardProps) {
         description: event.description,
       })
     }
-    setStatus('added')
+    setAddedToCalendar(true)
   }
 
   const handleRevise = () => {

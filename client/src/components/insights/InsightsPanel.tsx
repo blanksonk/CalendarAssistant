@@ -36,7 +36,7 @@ export function InsightsPanel({ onPromptAgent }: InsightsPanelProps) {
       const weekStart = getWeekStart(which)
       const insights = await fetchInsights(weekStart)
       setData(insights)
-    } catch (e) {
+    } catch {
       setError('Failed to load insights. Please try again.')
     } finally {
       setIsLoading(false)

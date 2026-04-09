@@ -6,7 +6,8 @@ import { addDays, formatShortDate, startOfWeek, parseEventDate } from '../../uti
 import { StatsBar } from './StatsBar'
 import { WeekGrid } from './WeekGrid'
 import { MonthGrid } from './MonthGrid'
-import { RadialView, buildMonthWeeks } from './RadialView'
+import { RadialView } from './RadialView'
+import { buildMonthWeeks } from '../../utils/calendarWeeks'
 
 interface CalendarViewProps {
   onEventClick?: (event: CalendarEvent) => void
@@ -34,18 +35,16 @@ export function CalendarView({ onEventClick, onPendingClick, requestedView, onRe
   useEffect(() => {
     if (!requestedView) return
     const targetDate = requestedView.date ? new Date(requestedView.date + 'T12:00:00') : new Date()
-    setDisplayMode('radial')
-    setReferenceDate(targetDate)
-    if (requestedView.view === 'month') {
-      setZoomedDay(null)
-      setZoomedDayOfWeek(null)
-    } else if (requestedView.view === 'week') {
+
+    let newZoomedDay: number | null = null
+    let newZoomedDayOfWeek: number | null = null
+
+    if (requestedView.view === 'week') {
       const weeks = buildMonthWeeks(targetDate)
       const weekIdx = weeks.findIndex((week) =>
         week.some((d) => d.toDateString() === targetDate.toDateString())
       )
-      setZoomedDay(weekIdx >= 0 ? weekIdx : null)
-      setZoomedDayOfWeek(null)
+      newZoomedDay = weekIdx >= 0 ? weekIdx : null
     } else if (requestedView.view === 'day') {
       const weeks = buildMonthWeeks(targetDate)
       let foundWeek = -1, foundDay = -1
@@ -53,9 +52,15 @@ export function CalendarView({ onEventClick, onPendingClick, requestedView, onRe
         const di = weeks[wi].findIndex((d) => d.toDateString() === targetDate.toDateString())
         if (di >= 0) { foundWeek = wi; foundDay = di; break }
       }
-      if (foundWeek >= 0) { setZoomedDay(foundWeek); setZoomedDayOfWeek(foundDay) }
+      if (foundWeek >= 0) { newZoomedDay = foundWeek; newZoomedDayOfWeek = foundDay }
     }
+
+    setDisplayMode('radial')
+    setReferenceDate(targetDate)
+    setZoomedDay(newZoomedDay)
+    setZoomedDayOfWeek(newZoomedDayOfWeek)
     onRequestedViewConsumed?.()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedView])
 
   // Derive what the StatsBar should display based on current zoom state
