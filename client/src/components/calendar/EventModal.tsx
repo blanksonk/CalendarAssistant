@@ -24,16 +24,21 @@ interface AttendeeInputProps {
   onRemove: (email: string) => void
 }
 
+type DropdownState =
+  | { type: 'hidden' }
+  | { type: 'loading' }
+  | { type: 'results'; contacts: ContactResult[]; focusedIdx: number }
+  | { type: 'empty' }
+  | { type: 'reauth' }
+
 function AttendeeInput({ chips, onAdd, onRemove }: AttendeeInputProps) {
   const [text, setText] = useState('')
-  const [contacts, setContacts] = useState<ContactResult[]>([])
-  const [focusedIdx, setFocusedIdx] = useState(0)
+  const [dropdown, setDropdown] = useState<DropdownState>({ type: 'hidden' })
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const closeDropdown = useCallback(() => {
-    setContacts([])
-    setFocusedIdx(0)
+    setDropdown({ type: 'hidden' })
   }, [])
 
   const commitText = (value: string) => {
@@ -53,25 +58,50 @@ function AttendeeInput({ chips, onAdd, onRemove }: AttendeeInputProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setText(val)
-    setFocusedIdx(0)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (val.trim().length < 1) { closeDropdown(); return }
+    setDropdown({ type: 'loading' })
     debounceRef.current = setTimeout(async () => {
-      const results = await searchPeople(val.trim())
-      setContacts(results)
+      const result = await searchPeople(val.trim())
+      if (result.ok) {
+        if (result.results.length === 0) {
+          setDropdown({ type: 'empty' })
+        } else {
+          setDropdown({ type: 'results', contacts: result.results, focusedIdx: 0 })
+        }
+      } else if (result.reason === 'scope_missing') {
+        setDropdown({ type: 'reauth' })
+      } else {
+        setDropdown({ type: 'empty' })
+      }
     }, 250)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (contacts.length > 0) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setFocusedIdx((i) => Math.min(i + 1, contacts.length - 1)); return }
-      if (e.key === 'ArrowUp') { e.preventDefault(); setFocusedIdx((i) => Math.max(i - 1, 0)); return }
-      if (e.key === 'Tab' || e.key === 'Enter') {
-        if (contacts[focusedIdx]) { e.preventDefault(); selectContact(contacts[focusedIdx]); return }
+    if (dropdown.type === 'results') {
+      const { contacts, focusedIdx } = dropdown
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setDropdown({ type: 'results', contacts, focusedIdx: Math.min(focusedIdx + 1, contacts.length - 1) })
+        return
       }
-      if (e.key === 'Escape') { e.preventDefault(); closeDropdown(); return }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setDropdown({ type: 'results', contacts, focusedIdx: Math.max(focusedIdx - 1, 0) })
+        return
+      }
+      if ((e.key === 'Tab' || e.key === 'Enter') && contacts[focusedIdx]) {
+        e.preventDefault()
+        selectContact(contacts[focusedIdx])
+        return
+      }
     }
-    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+    if (dropdown.type !== 'hidden' && e.key === 'Escape') {
+      e.preventDefault()
+      closeDropdown()
+      return
+    }
+    if (e.key === 'Enter' || e.key === ',') {
       if (text.trim()) { e.preventDefault(); commitText(text) }
     }
     if (e.key === 'Backspace' && text === '' && chips.length > 0) {
@@ -93,7 +123,7 @@ function AttendeeInput({ chips, onAdd, onRemove }: AttendeeInputProps) {
             {email}
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onRemove(email) }}
+              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); onRemove(email) }}
               className="text-blue-500 hover:text-blue-700 leading-none"
               aria-label={`Remove ${email}`}
             >
@@ -109,20 +139,31 @@ function AttendeeInput({ chips, onAdd, onRemove }: AttendeeInputProps) {
           onKeyDown={handleKeyDown}
           onBlur={() => { setTimeout(closeDropdown, 150) }}
           placeholder={chips.length === 0 ? 'Type a name or email…' : ''}
-          className="flex-1 min-w-[120px] text-sm bg-transparent outline-none placeholder-gray-400"
+          className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400"
           style={{ minWidth: '8ch' }}
         />
       </div>
 
-      {contacts.length > 0 && (
+      {dropdown.type !== 'hidden' && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50">
-          {contacts.map((c, i) => (
+          {dropdown.type === 'loading' && (
+            <p className="px-3 py-2 text-xs text-gray-400">Searching…</p>
+          )}
+          {dropdown.type === 'empty' && (
+            <p className="px-3 py-2 text-xs text-gray-400">No contacts found — type a full email and press Enter</p>
+          )}
+          {dropdown.type === 'reauth' && (
+            <p className="px-3 py-2 text-xs text-amber-600">
+              Sign out and back in to enable contact search
+            </p>
+          )}
+          {dropdown.type === 'results' && dropdown.contacts.map((c, i) => (
             <button
               key={c.email}
               type="button"
               onMouseDown={(e) => { e.preventDefault(); selectContact(c) }}
               className={`w-full text-left px-3 py-2 flex flex-col gap-0.5 hover:bg-blue-50 ${
-                i === focusedIdx ? 'bg-blue-50' : ''
+                i === dropdown.focusedIdx ? 'bg-blue-50' : ''
               }`}
             >
               <span className="text-xs font-medium text-gray-800">{c.name}</span>
@@ -159,7 +200,6 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
     setAttendeeChips(event.attendees ?? [])
   }, [event?.id])
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -213,7 +253,7 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
       onClick={handleOverlayClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
     >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 overflow-visible">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
@@ -246,7 +286,8 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          {/* Start and End stacked vertically to prevent datetime-local overflow */}
+          <div className="flex flex-col gap-2">
             <div>
               <label htmlFor="event-start" className="text-xs font-medium text-gray-500 mb-1 block">
                 Start

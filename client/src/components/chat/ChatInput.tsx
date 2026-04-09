@@ -8,18 +8,24 @@ interface ChatInputProps {
   disabled?: boolean
 }
 
-/** Extract the @ mention query at the end of the text up to `cursorPos`. */
+/** Extract the @ mention query at the cursor position. Returns null if no active @mention. */
 function getMentionQuery(text: string, cursorPos: number): string | null {
   const before = text.slice(0, cursorPos)
-  const match = before.match(/@(\S*)$/)
+  const match = before.match(/@([^\s@]*)$/)
   return match ? match[1] : null
 }
 
+type DropdownState =
+  | { type: 'hidden' }
+  | { type: 'loading' }
+  | { type: 'results'; contacts: ContactResult[]; focusedIdx: number }
+  | { type: 'empty' }
+  | { type: 'reauth' }
+
 export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProps) {
   const ref = useRef<HTMLTextAreaElement>(null)
-  const [contacts, setContacts] = useState<ContactResult[]>([])
+  const [dropdown, setDropdown] = useState<DropdownState>({ type: 'hidden' })
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
-  const [focusedIdx, setFocusedIdx] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Auto-resize textarea
@@ -31,9 +37,8 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
   }, [value])
 
   const closeMention = useCallback(() => {
-    setContacts([])
+    setDropdown({ type: 'hidden' })
     setMentionQuery(null)
-    setFocusedIdx(0)
   }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -49,17 +54,29 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
     }
 
     setMentionQuery(query)
-    setFocusedIdx(0)
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
+
     if (query.length === 0) {
-      // Show nothing until at least 1 char typed after @
-      setContacts([])
+      // Show a hint once @ is typed, before the user has typed a query
+      setDropdown({ type: 'loading' })
       return
     }
+
+    setDropdown({ type: 'loading' })
     debounceRef.current = setTimeout(async () => {
-      const results = await searchPeople(query)
-      setContacts(results)
+      const result = await searchPeople(query)
+      if (result.ok) {
+        if (result.results.length === 0) {
+          setDropdown({ type: 'empty' })
+        } else {
+          setDropdown({ type: 'results', contacts: result.results, focusedIdx: 0 })
+        }
+      } else if (result.reason === 'scope_missing') {
+        setDropdown({ type: 'reauth' })
+      } else {
+        setDropdown({ type: 'empty' })
+      }
     }, 250)
   }
 
@@ -67,12 +84,10 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
     const cursor = ref.current?.selectionStart ?? value.length
     const before = value.slice(0, cursor)
     const after = value.slice(cursor)
-    // Replace @query with the email
-    const replaced = before.replace(/@(\S*)$/, contact.email)
+    const replaced = before.replace(/@([^\s@]*)$/, contact.email)
     const newValue = replaced + after
     onChange(newValue)
     closeMention()
-    // Restore focus
     setTimeout(() => {
       ref.current?.focus()
       const pos = replaced.length
@@ -81,15 +96,16 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (contacts.length > 0) {
+    if (dropdown.type === 'results') {
+      const { contacts, focusedIdx } = dropdown
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setFocusedIdx((i) => Math.min(i + 1, contacts.length - 1))
+        setDropdown({ type: 'results', contacts, focusedIdx: Math.min(focusedIdx + 1, contacts.length - 1) })
         return
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setFocusedIdx((i) => Math.max(i - 1, 0))
+        setDropdown({ type: 'results', contacts, focusedIdx: Math.max(focusedIdx - 1, 0) })
         return
       }
       if (e.key === 'Tab' || e.key === 'Enter') {
@@ -99,11 +115,11 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
           return
         }
       }
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closeMention()
-        return
-      }
+    }
+    if (dropdown.type !== 'hidden' && e.key === 'Escape') {
+      e.preventDefault()
+      closeMention()
+      return
     }
 
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -112,21 +128,31 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
     }
   }
 
-  const showDropdown = contacts.length > 0 && mentionQuery !== null
+  const showDropdown = dropdown.type !== 'hidden'
 
   return (
     <div className="px-3 pb-3 shrink-0">
       <div className="relative">
-        {/* @ mention dropdown */}
         {showDropdown && (
           <div className="absolute bottom-full mb-1 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50">
-            {contacts.map((c, i) => (
+            {dropdown.type === 'loading' && (
+              <p className="px-3 py-2 text-xs text-gray-400">Searching contacts…</p>
+            )}
+            {dropdown.type === 'empty' && (
+              <p className="px-3 py-2 text-xs text-gray-400">No contacts found — keep typing or paste an email</p>
+            )}
+            {dropdown.type === 'reauth' && (
+              <p className="px-3 py-2 text-xs text-amber-600">
+                Sign out and back in to enable contact search
+              </p>
+            )}
+            {dropdown.type === 'results' && dropdown.contacts.map((c, i) => (
               <button
                 key={c.email}
                 type="button"
                 onMouseDown={(e) => { e.preventDefault(); insertContact(c) }}
                 className={`w-full text-left px-3 py-2 flex flex-col gap-0.5 hover:bg-blue-50 ${
-                  i === focusedIdx ? 'bg-blue-50' : ''
+                  i === dropdown.focusedIdx ? 'bg-blue-50' : ''
                 }`}
               >
                 <span className="text-xs font-medium text-gray-800">{c.name}</span>

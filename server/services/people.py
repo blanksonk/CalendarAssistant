@@ -12,7 +12,11 @@ def search_contacts(creds: Credentials, query: str, max_results: int = 5) -> lis
     """
     Search the user's contacts and directory for a name or email fragment.
     Returns a list of {name, email} dicts ordered by relevance.
+    Raises ValueError with a user-friendly message if the scope is missing.
     """
+    import logging
+    log = logging.getLogger(__name__)
+
     service = people_client(creds)
     results: list[dict[str, Any]] = []
 
@@ -33,10 +37,14 @@ def search_contacts(creds: Credentials, query: str, max_results: int = 5) -> lis
             email = _primary(person.get("emailAddresses", []), "value")
             if email:
                 results.append({"name": name or email, "email": email})
-    except Exception:
-        pass
+    except Exception as exc:
+        msg = str(exc)
+        log.warning("searchContacts failed: %s", msg)
+        if "403" in msg or "insufficient" in msg.lower() or "scope" in msg.lower():
+            raise ValueError("contacts_scope_missing")
+        # Other errors (API not enabled, quota, etc) — log and continue with empty
 
-    # Also search the directory (Google Workspace users)
+    # Also search the directory (Google Workspace users) — optional, best-effort
     if len(results) < max_results:
         try:
             resp = (
@@ -54,8 +62,8 @@ def search_contacts(creds: Credentials, query: str, max_results: int = 5) -> lis
                 email = _primary(person.get("emailAddresses", []), "value")
                 if email and not any(r["email"] == email for r in results):
                     results.append({"name": name or email, "email": email})
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("searchDirectoryPeople failed (expected for non-Workspace accounts): %s", exc)
 
     return results[:max_results]
 
