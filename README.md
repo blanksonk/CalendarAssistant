@@ -183,7 +183,7 @@ erDiagram
         timestamptz last_seen_at
     }
     oauth_tokens {
-        uuid user_id PK FK
+        uuid user_id PK
         text access_token
         text refresh_token
         timestamptz expires_at
@@ -193,7 +193,6 @@ erDiagram
         uuid id PK
         uuid user_id FK
         text summary
-        vector summary_embedding
         timestamptz created_at
     }
     chat_messages {
@@ -202,12 +201,11 @@ erDiagram
         uuid user_id FK
         text role
         text content
-        vector embedding
         timestamptz archived_at
         timestamptz created_at
     }
     weekly_focus {
-        uuid user_id PK FK
+        uuid user_id PK
         date week_start PK
         text narrative
         timestamptz generated_at
