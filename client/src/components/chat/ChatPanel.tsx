@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { ChatInput } from './ChatInput'
-import { CommandPalette } from './CommandPalette'
 import { ChatMessage } from './ChatMessage'
 import type { Message, ToolCall } from './ChatMessage'
 import { EventProposalCard } from './EventProposalCard'
@@ -38,7 +37,6 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirme
   const [messages, setMessages] = useState<ExtendedMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [showPalette, setShowPalette] = useState(false)
   const [chatSessionId, setChatSessionId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const addPendingEvent = usePendingEventsStore((s) => s.addEvent)
@@ -84,19 +82,6 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirme
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // ⌘K palette toggle
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setShowPalette((v) => !v)
-      }
-      if (e.key === 'Escape') setShowPalette(false)
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
-
   const updateMessage = useCallback(
     (id: string, updater: (msg: ExtendedMessage) => ExtendedMessage) => {
       setMessages((prev) => prev.map((m) => (m.id === id ? updater(m) : m)))
@@ -106,7 +91,6 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirme
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isStreaming) return
-    setShowPalette(false)
     setInput('')
 
     const userMsg: ExtendedMessage = { id: `u-${Date.now()}`, role: 'user', content: text }
@@ -267,17 +251,12 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirme
     }
   }
 
-  const handlePaletteSelect = (text: string) => {
-    setInput(text)
-    sendMessage(text)
-  }
-
   return (
     <div data-testid="chat-panel" className="flex flex-col h-full">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 shrink-0">
         <h2 className="text-sm font-semibold text-gray-800">Assistant</h2>
-        <p className="text-xs text-gray-400">Press ⌘K for quick actions</p>
+        <p className="text-xs text-gray-400">Type @ to mention a contact</p>
       </div>
 
       {/* Messages */}
@@ -309,18 +288,12 @@ export function ChatPanel({ onTabSwitch, initialInput, onInputConsumed, confirme
         <div ref={bottomRef} />
       </div>
 
-      {/* Command palette */}
-      {showPalette && (
-        <CommandPalette onSelect={handlePaletteSelect} onClose={() => setShowPalette(false)} />
-      )}
-
       {/* Input */}
       <ChatInput
         value={input}
         onChange={setInput}
         onSubmit={sendMessage}
         disabled={isStreaming}
-        onPaletteToggle={() => setShowPalette((v) => !v)}
       />
     </div>
   )

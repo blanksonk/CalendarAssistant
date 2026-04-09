@@ -35,24 +35,9 @@ describe('ChatPanel', () => {
     expect(screen.getByRole('textbox', { name: /chat message/i })).toBeInTheDocument()
   })
 
-  it('shows command palette on ⌘K', async () => {
+  it('shows @ mention hint in header', () => {
     render(<ChatPanel />)
-    await act(async () => {
-      fireEvent.keyDown(window, { key: 'k', metaKey: true })
-    })
-    expect(screen.getByRole('listbox', { name: /quick actions/i })).toBeInTheDocument()
-  })
-
-  it('hides command palette on Escape', async () => {
-    render(<ChatPanel />)
-    await act(async () => {
-      fireEvent.keyDown(window, { key: 'k', metaKey: true })
-    })
-    expect(screen.getByRole('listbox')).toBeInTheDocument()
-    await act(async () => {
-      fireEvent.keyDown(window, { key: 'Escape' })
-    })
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.getByText(/@ to mention/i)).toBeInTheDocument()
   })
 
   it('sends message and renders streamed text', async () => {

@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { type PendingEvent, usePendingEventsStore } from '../../store/pendingEventsStore'
+import { searchPeople, type ContactResult } from '../../api/people'
 
 interface EventModalProps {
   event: PendingEvent | null
@@ -9,10 +10,134 @@ interface EventModalProps {
 }
 
 function formatForInput(date: Date): string {
-  // Returns "YYYY-MM-DDTHH:MM" for datetime-local inputs
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
+
+// ---------------------------------------------------------------------------
+// AttendeeInput — chip-based multi-select with contact typeahead
+// ---------------------------------------------------------------------------
+
+interface AttendeeInputProps {
+  chips: string[]
+  onAdd: (email: string) => void
+  onRemove: (email: string) => void
+}
+
+function AttendeeInput({ chips, onAdd, onRemove }: AttendeeInputProps) {
+  const [text, setText] = useState('')
+  const [contacts, setContacts] = useState<ContactResult[]>([])
+  const [focusedIdx, setFocusedIdx] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const closeDropdown = useCallback(() => {
+    setContacts([])
+    setFocusedIdx(0)
+  }, [])
+
+  const commitText = (value: string) => {
+    const email = value.trim()
+    if (email && !chips.includes(email)) onAdd(email)
+    setText('')
+    closeDropdown()
+  }
+
+  const selectContact = (c: ContactResult) => {
+    if (!chips.includes(c.email)) onAdd(c.email)
+    setText('')
+    closeDropdown()
+    inputRef.current?.focus()
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setText(val)
+    setFocusedIdx(0)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (val.trim().length < 1) { closeDropdown(); return }
+    debounceRef.current = setTimeout(async () => {
+      const results = await searchPeople(val.trim())
+      setContacts(results)
+    }, 250)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (contacts.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setFocusedIdx((i) => Math.min(i + 1, contacts.length - 1)); return }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setFocusedIdx((i) => Math.max(i - 1, 0)); return }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        if (contacts[focusedIdx]) { e.preventDefault(); selectContact(contacts[focusedIdx]); return }
+      }
+      if (e.key === 'Escape') { e.preventDefault(); closeDropdown(); return }
+    }
+    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+      if (text.trim()) { e.preventDefault(); commitText(text) }
+    }
+    if (e.key === 'Backspace' && text === '' && chips.length > 0) {
+      onRemove(chips[chips.length - 1])
+    }
+  }
+
+  return (
+    <div className="relative">
+      <div
+        className="w-full min-h-[38px] border border-gray-200 rounded-lg px-2 py-1.5 flex flex-wrap gap-1 focus-within:ring-2 focus-within:ring-blue-200 cursor-text"
+        onClick={() => inputRef.current?.focus()}
+      >
+        {chips.map((email) => (
+          <span
+            key={email}
+            className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs rounded-full px-2 py-0.5"
+          >
+            {email}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRemove(email) }}
+              className="text-blue-500 hover:text-blue-700 leading-none"
+              aria-label={`Remove ${email}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          type="text"
+          value={text}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onBlur={() => { setTimeout(closeDropdown, 150) }}
+          placeholder={chips.length === 0 ? 'Type a name or email…' : ''}
+          className="flex-1 min-w-[120px] text-sm bg-transparent outline-none placeholder-gray-400"
+          style={{ minWidth: '8ch' }}
+        />
+      </div>
+
+      {contacts.length > 0 && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50">
+          {contacts.map((c, i) => (
+            <button
+              key={c.email}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); selectContact(c) }}
+              className={`w-full text-left px-3 py-2 flex flex-col gap-0.5 hover:bg-blue-50 ${
+                i === focusedIdx ? 'bg-blue-50' : ''
+              }`}
+            >
+              <span className="text-xs font-medium text-gray-800">{c.name}</span>
+              <span className="text-xs text-gray-400">{c.email}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// EventModal
+// ---------------------------------------------------------------------------
 
 export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalProps) {
   const { removeEvent } = usePendingEventsStore()
@@ -20,7 +145,7 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [description, setDescription] = useState('')
-  const [attendees, setAttendees] = useState('')
+  const [attendeeChips, setAttendeeChips] = useState<string[]>([])
   const [reviseText, setReviseText] = useState('')
   const [saving, setSaving] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -31,7 +156,7 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
     setStart(formatForInput(event.start))
     setEnd(formatForInput(event.end))
     setDescription(event.description ?? '')
-    setAttendees((event.attendees ?? []).join(', '))
+    setAttendeeChips(event.attendees ?? [])
   }, [event?.id])
 
   // Close on Escape
@@ -52,7 +177,7 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
       start: new Date(start),
       end: new Date(end),
       description,
-      attendees: attendees ? attendees.split(',').map((a) => a.trim()).filter(Boolean) : [],
+      attendees: attendeeChips,
     }
     setSaving(true)
     try {
@@ -149,16 +274,13 @@ export function EventModal({ event, onClose, onRevise, onConfirm }: EventModalPr
           </div>
 
           <div>
-            <label htmlFor="event-attendees" className="text-xs font-medium text-gray-500 mb-1 block">
-              Attendees (comma-separated)
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
+              Attendees
             </label>
-            <input
-              id="event-attendees"
-              type="text"
-              value={attendees}
-              onChange={(e) => setAttendees(e.target.value)}
-              placeholder="alice@example.com, bob@example.com"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200"
+            <AttendeeInput
+              chips={attendeeChips}
+              onAdd={(email) => setAttendeeChips((prev) => [...prev, email])}
+              onRemove={(email) => setAttendeeChips((prev) => prev.filter((e) => e !== email))}
             />
           </div>
 

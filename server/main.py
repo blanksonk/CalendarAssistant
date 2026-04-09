@@ -43,6 +43,9 @@ app.include_router(chat.router, prefix="/api/chat")
 from server.routes import insights
 
 app.include_router(insights.router, prefix="/api/insights")
+from server.routes import people
+
+app.include_router(people.router, prefix="/api/people")
 
 
 @app.get("/api/health")

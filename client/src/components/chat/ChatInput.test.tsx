@@ -47,12 +47,8 @@ describe('ChatInput', () => {
     expect(onSubmit).toHaveBeenCalledWith('hello')
   })
 
-  it('calls onPaletteToggle when palette button clicked', () => {
-    const onPaletteToggle = vi.fn()
-    render(
-      <ChatInput value="" onChange={vi.fn()} onSubmit={vi.fn()} onPaletteToggle={onPaletteToggle} />
-    )
-    fireEvent.click(screen.getByRole('button', { name: /command palette/i }))
-    expect(onPaletteToggle).toHaveBeenCalled()
+  it('shows @ mention hint in placeholder', () => {
+    render(<ChatInput value="" onChange={vi.fn()} onSubmit={vi.fn()} />)
+    expect(screen.getByPlaceholderText(/@ to mention/i)).toBeInTheDocument()
   })
 })
