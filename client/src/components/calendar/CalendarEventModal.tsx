@@ -110,26 +110,26 @@ export function CalendarEventModal({ event, onClose }: CalendarEventModalProps) 
           />
         </div>
 
-        {/* Start / End */}
-        <div className="flex gap-3">
-          <div className="flex flex-col gap-1 flex-1">
+        {/* Start / End — stacked vertically to prevent datetime-local overflow */}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">Start</label>
             <input
               data-testid="modal-start-input"
               type="datetime-local"
               value={start}
               onChange={(e) => setStart(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
-          <div className="flex flex-col gap-1 flex-1">
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">End</label>
             <input
               data-testid="modal-end-input"
               type="datetime-local"
               value={end}
               onChange={(e) => setEnd(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
         </div>
